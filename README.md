@@ -5,4 +5,6 @@ We present NAGINI-3D (N-Active shapes for seGmentINg 3D biological Images), a me
 <img src="https://github.com/QuentinRapilly/NAGINI-3D/blob/main/logo/nagini.png" title="NAGINI Logo" width="25%" align="right">
 
 This repository provides the code described in the paper:
-- Quentin RAPILLY, Pierre MAINDRON, Anaïs BADOUAL, Guenaelle BOUET-CHALON, Charles KERVRANN
+- Quentin RAPILLY, Pierre MAINDRON, Anaïs BADOUAL, Guenaelle BOUET-CHALON, Charles KERVRANN.
+[*Prediction of Parametric Surfaces for Multi-Object Segmentation in 3D Biological Imaging*](TODO_ajouter_le_lien).
+International Conference on Scale Space and Variational Methods in Computer Vision (SSVM), Totnes, England, May 2025.
