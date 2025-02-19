@@ -13,7 +13,7 @@ International Conference on Scale Space and Variational Methods in Computer Visi
 
 Our approach consists in training a U-Net to:
 1. locate the objects of interest in an 3D image using a predicted probability map $\hat{p}$,
-2. for each object, predict a set of control points $\{\hat{\bm{f}}_{\bm{x},i}\}_i$ describing a parametric surface $\hat{\bm{s}}_{\bm{x}}$ representing the object located in $\bm{x}$,
+2. for each object, predict a set of control points $\{\hat{\boldsymbol{f}}_{\boldsymbol{x},i}\}_i$ describing a parametric surface $\hat{\boldsymbol{s}}_{\boldsymbol{x}}$ representing the object located in $\boldsymbol{x}$,
 3. (optionnal) a snake optimisation procedure based on image gradient can be used to optimize the surfaces.
 
 To evaluate the loss used to train the network, the Ground-Truth (GT) probability map $p$ and a sampling $S$ representing each object of the training dataset are required. Some tools available in this Github will help you pre-process you data to create them.
