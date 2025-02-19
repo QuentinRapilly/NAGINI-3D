@@ -1,0 +1,8 @@
+matplotlib
+tifffile
+einops
+csbdeep
+scipy==1.11.3
+scikit-image==0.21.0
+wandb==0.15.12
+hydra-core==1.3.2

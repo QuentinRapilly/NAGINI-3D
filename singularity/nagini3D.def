@@ -1,0 +1,9 @@
+Bootstrap : docker
+From :  pytorch/pytorch:1.13.1-cuda11.6-cudnn8-runtime # pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime
+
+%files
+   nagini3D.txt /root/nagini3D.txt
+
+%post
+       
+    pip install -r /root/nagini3D.txt
