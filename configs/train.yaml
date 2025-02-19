@@ -1,0 +1,31 @@
+defaults:
+  - _self_
+  - model: unet
+  - optimizer: adam
+
+data:
+  patch_size: 96   # int: size of the patch cropped in the images to feed the network, reduce in case of "Cuda Out Of Memory" 
+  data_aug: true   # bool: random flips along x,y,z axis for data augmentation 
+  train: <path_to_train_set_dir>  # str: path to train set dir
+  val:  <path_to_val_set_dir>     # str: path to validation set dir
+
+settings:
+  experiment_name: DeepBioSnake  # str: experiment name used to store the network during training and log informations on WandB
+  nb_points_on_surface: 101  # int: number of points sampled on the surface to compute the sliced wasserstein distance loss, reduce in case of "Cuda Out Of Memory" 
+  nb_epochs: 1000  # int: nb of epochs during training
+  use_wandb: true  # bool: weither to log or not losses on WandB to follow the training in live 
+  batch_size: 1  # int: batch_size used for training 
+  M1: 4     # int: parameter defining the smoothness of the surface, keep it small if you use the snake refinement
+  M2: 2     # int: parameter defining the smoothness of the surface (try to keep M1=2M2), keep it small if you use the snake refinement
+  seed: 0   # int: fix a seed if you need reproducibility in your training
+
+loss:
+  epoch_reg_max: 200  # int: number of epochs during which the regularization preventing surface twists is applied 
+  reg_part: 0.0       # float in [0,1]: weight the regularisation preventing surface twists, keep it zero for small values of M1 and M2 (typically 4,2), increase if you augment them. 
+  lambdas:    
+    snakes: 1.0       # float: weight the surface loss
+    spots: 1.0        # float: weight the probability loss used for center detection
+    regularization : 0.001   # float: weight the background regularization loss (see paper for more details)
+
+save:
+  path: <path_to_model_save_dir>  # str: path to the dir where the model trained will be stored

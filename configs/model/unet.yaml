@@ -1,0 +1,8 @@
+name: unet
+input_channels: 1
+features_start: 32
+num_layers: 3
+inner_normalisation: BatchNorm # None # 
+train_bn: true
+padding_mode: zeros
+bilinear: false

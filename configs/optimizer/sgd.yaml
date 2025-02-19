@@ -1,0 +1,5 @@
+name: sgd
+parameters:
+  lr: 0.01
+  momentum: 0.9
+  nesterov: true
