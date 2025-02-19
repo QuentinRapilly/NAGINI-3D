@@ -13,7 +13,7 @@ International Conference on Scale Space and Variational Methods in Computer Visi
 
 Our approach consists in training a U-Net to:
 1. locate the objects of interest in an 3D image using a predicted probability map $\hat{p}$,
-2. for each object, predict a set of control points $\{\hat{\boldsymbol{f}}_{\boldsymbol{x},i}\}_i$ describing a parametric surface $\hat{\boldsymbol{s}}_{\boldsymbol{x}}$ representing the object located in $\boldsymbol{x}$,
+2. for each object, predict a set of control points $\{\hat{{f}}_{{x},i}\}_i$ describing a parametric surface $\hat{{s}}_{{x}}$ representing the object located in ${x}$,
 3. (optionnal) a snake optimisation procedure based on image gradient can be used to optimize the surfaces.
 
 To evaluate the loss used to train the network, the Ground-Truth (GT) probability map $p$ and a sampling $S$ representing each object of the training dataset are required. Some tools available in this Github will help you pre-process you data to create them.
@@ -42,7 +42,7 @@ The image can then be run:
 
 `singularity shell --nv -B <storage to your repository where the code and data are stored>:<storage to your repository where the code and data are stored> <path to the .sif image file>`
 
-If the Docker image selected to create the Singularity image (see in [nagini3D.def](singularity/nagini3D.def)) doesn't match your GPU and CUDA compatibility, find another one [here](https://hub.docker.com/r/pytorch/pytorch/tags) that matches your requirements and with PyTorch>1.13.
+If the Docker image selected to create the Singularity image (see in [nagini3D.def](singularity/nagini3D.def)) doesn't match your GPU and CUDA compatibility, find another one [here](https://hub.docker.com/r/pytorch/pytorch/tags) that matches your requirements and with PyTorch>=1.13.
 
 While the image is running, you should have the exact same version of Python, PyTorch and the important packages used to run the code.
 
