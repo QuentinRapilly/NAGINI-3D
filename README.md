@@ -13,7 +13,7 @@ International Conference on Scale Space and Variational Methods in Computer Visi
 
 Our approach consists in training a U-Net to:
 1. locate the objects of interest in an 3D image using a predicted probability map $\hat{p}$,
-2. for each object, predict a set of control points $\{\hat{\boldsymbol{f}}_{\boldsymbol{x},i}\}_i$ describing a parametric surface $\hat{\boldsymbol{s}}_{\boldsymbol{x}}$ representing the object located in $\boldsymbol{x}$,
+2. for each object, predict a set of control points $\{\hat{\boldsymbol{f}}\_{\boldsymbol{x},i}\}\_i$ describing a parametric surface $\hat{\boldsymbol{s}}\_{\boldsymbol{x}}$ representing the object located in $\boldsymbol{x}$,
 3. (optionnal) a snake optimisation procedure based on image gradient can be used to optimize the surfaces.
 
 To evaluate the loss used to train the network, the Ground-Truth (GT) probability/spots map $p$ and a sampling $S$ representing each object of the training dataset are required. Some tools available in this Github will help you pre-process you data to create them.
@@ -95,6 +95,10 @@ Optionnal parameters:
 - `-ot <bool: if True, apply an Otsu binarization of the image before snake optimization>`. For sparse objects, this option improves drastically the results. For dense objects, keep it to False.
 
 
-#### Pre-trained weights
+#### Dataset and pre-trained weights
 
-To test the algorithm, we provide the weights of the network obtained on CAPS dataset (see the article) and some test images. TODO !
+To test the algorithm, we provide the CAPS dataset described in the article and the weights of the network obtained after being trained on it.
+
+[Link to CAPS dataset.](https://zenodo.org/records/14931808?token=eyJhbGciOiJIUzUxMiJ9.eyJpZCI6IjlhYTBlMTRiLTI3YWMtNGIxNi1iNTQxLTcwNjFjMjFlYmE3YiIsImRhdGEiOnt9LCJyYW5kb20iOiI2MDdmMmQ3NzdjZWMyNDM1NTA4ZjI4OTUzYmQ3OWU3MiJ9.rJK8i6DmDl75V3fxJNIm63LeXsm0uHrOGoOc4mtiYOxBLGSAzfzfu04QlZft5eKr38c-r8exYpDE_ZqqBURldg)
+
+[Link to the network config file and weights after being trained on CAPS (+optimal thresholds used for inference).](https://zenodo.org/records/14932135?token=eyJhbGciOiJIUzUxMiJ9.eyJpZCI6IjQ5YjY5Mzc0LWRhOWUtNGExZi05YmQ4LTMxOWI1ZWFjYTFiMCIsImRhdGEiOnt9LCJyYW5kb20iOiIzMTNhODA1ZjEzZTYwZDRjNWRhMjMzYzk4MDkxYTIwYyJ9.m8pDDXwVZarpL_sEgtrvMztJgMBaQa_VkusZTIROr-BqkyUI8WNp7MqQI22Si1OfxWNIhp8ei6SCVJFI83iWJg)
