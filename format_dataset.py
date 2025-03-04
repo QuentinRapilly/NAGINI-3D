@@ -7,7 +7,7 @@ from time import time
 from torch.cuda import is_available
 
 
-from data.format_dataset.data_reading_tools import (compute_barycenter, compute_radius, mask_to_contour,
+from nagini3D.data.format_dataset.data_reading_tools import (compute_barycenter, compute_radius, mask_to_contour,
                                 bound_box, farthest_point_sampling, distance_to_center)
 
 

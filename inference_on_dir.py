@@ -7,7 +7,7 @@ from os import mkdir
 from glob import glob
 from numpy import savez
 
-from models.model import Nagini3D
+from nagini3D.models.model import Nagini3D
 
 
 def str2bool(v):

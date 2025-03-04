@@ -8,9 +8,9 @@ import random
 from os import environ
 from os.path import join
 
-from data.training_set import TrainingSet, custom_collate
-from data.th_optim_set import OptimSet
-from models.model import Nagini3D
+from nagini3D.data.training_set import TrainingSet, custom_collate
+from nagini3D.data.th_optim_set import OptimSet
+from nagini3D.models.model import Nagini3D
 
 # reproducibility
 def seed_worker(worker_id):
