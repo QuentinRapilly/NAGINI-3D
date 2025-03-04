@@ -12,13 +12,13 @@ International Conference on Scale Space and Variational Methods in Computer Visi
 ## Method description
 
 Our approach consists in training a U-Net to:
-1. locate the objects of interest in an 3D image using a predicted probability map $\hat{p}$,
+1. locate the objects of interest in a 3D image using a predicted probability map $\hat{p}$,
 2. for each object, predict a set of control points $\lbrace\hat{\boldsymbol{f}}\_{\boldsymbol{x},i}\rbrace\_i$ describing a parametric surface $\hat{\boldsymbol{s}}\_{\boldsymbol{x}}$ representing the object located in $\boldsymbol{x}$,
 3. (optionnal) a snake optimisation procedure based on image gradient can be used to optimize the surfaces.
 
-To evaluate the loss used to train the network, the Ground-Truth (GT) probability/spots map $p$ and a sampling $S$ representing each object of the training dataset are required. Some tools available in this Github will help you pre-process you data to create them.
+To evaluate the loss used to train the network, the Ground-Truth (GT) probability/spots map $p$ and a sampling $S$ representing each object of the training dataset are required. Some tools available in this Github will help you pre-process your data to create them.
 
-The training and inference pipeline are summerized on the following figures.
+The training and inference pipelines are summerized on the following figures.
 
 **Training pipeline:**
 ![image](images/pipeline/training.png)
@@ -31,6 +31,8 @@ More details on the method are provided in the paper mentionned above.
 ## Installation
 
 The experiments were run using Python 3.10.8. A list of all the packages installed to run the method is provided in [requirements.txt](requirements.txt).
+
+### Installation using Singularity
 
 To guarantee the proper functionning of the code and the reproducibility of the experiments, we recommend to create a Singularity container ([installation guide](https://docs.sylabs.io/guides/2.6/user-guide/installation.html)) using the same recipe as us. The recipe [nagini3D.def](singularity/nagini3D.def) and the corresponding requirement file [nagini3D.txt](singularity/nagini3D.txt) are provided in the [singularity directory](singularity).
 
@@ -48,13 +50,55 @@ While the image is running, you should have the exact same version of Python, Py
 
 ### Installation using pip
 
-TODO avec Arthur 
+Our implementation can be installed using pip.
+
+We strongly recommend installing it in a dedicated conda environment.
+
+`conda create --name nagini-env python=3.10.8`
+
+`conda activate nagini-env`
+
+Before installing our package, the only requirement is that your environment has a working version of Pytorch>=1.13.
+If you want to use your GPU (strongly recommended, especially for training), make sure you have a working CUDA.
+
+No GPU: `conda install pytorch=1.13`
+
+Using GPU: `conda install pytorch=1.13 pytorch-cuda=11.6 -c pytorch -c nvidia` (you might need to change the CUDA version depending on your GPU requirements and driver).
+
+To make sure your GPU is available, open a Python prompt and run the following commands:
+
+```
+from torch.cuda import is_available
+cuda_working = "yes" if is_available() else "no"
+print(f"GPU working: {cuda_working}")
+```
+
+If it outputs "no", something didn't work in your CUDA installation.
+
+To install the package, run:
+
+`pip install nagini3D`
 
 ## Applying the method
 
 All the scripts are designed to process TIF images.
 
-### Preprocessing data for training
+### Learning how to use the package using the jupyter notebooks
+
+We created jupyter notebooks to teach you how to infere new data, pre-process your data for training, train a model.
+
+TODO
+
+### Applying our scrpits directly
+
+We provide all the scripts we used to make our experiments. To use it, we recommend installing an extended version of your package that contains additional packages:
+- **wandb** (to display training logs on wandb.ai, it requires creating an account),
+- **hydra** (used for configuration files management),
+- **tifffile** (used to load the tiff images).
+
+To install it run: `pip install nagini3D[full]` instead of the classical pip command (see "Installation using pip"). If you choose the Singularity installation, everything is already installed.
+
+#### Preprocessing data for training
 
 The script [format_dataset.py](format_dataset.py) pre-processes the GT masks to create the probability maps and the sampling of the objects.
 
@@ -64,7 +108,7 @@ Warnings:
 1. Here, the sampling procedure can produce any positive integer number of points. But the sampling procedure used for predicted surfaces (Fibonacci lattice) during training requires an odd number of sampled points. Make sure that the sampling size is greater or equal than the sampling size you will use during training.
 2. Make sur that your labels are indexed contiguously (no missing labels, ex: 1,2,4 but no mask correspond to index 3).
 
-### Formating dataset for training
+#### Formating dataset for training
 
 The repository containing each dataset (training, test, validation) should be organized as follow:
 
@@ -75,7 +119,7 @@ directory_of_the_set
 |--samplings  (directory containing the output of the "format_dataset.py" script)
 ```
 
-### Training a model
+#### Training a model
 
 Edit the file [configs/train.yaml](configs/train.yaml), then launch the scrpit [train.py](train.py).
 
@@ -83,7 +127,7 @@ Edit the file [configs/train.yaml](configs/train.yaml), then launch the scrpit [
 
 If the wandb option is activated, you can follow the train logs on [wandb.ai](https://wandb.ai).
 
-### Infering on new data
+#### Infering on new data
 
 Run the file [inference_on_dir.py](inference_on_dir.py):
 
@@ -95,7 +139,7 @@ Optionnal parameters:
 - `-ot <bool: if True, apply an Otsu binarization of the image before snake optimization>`. For sparse objects, this option improves drastically the results. For dense objects, keep it to False.
 
 
-#### Dataset and pre-trained weights
+## Dataset and pre-trained weights
 
 To test the algorithm, we provide the CAPS dataset described in the article and the weights of the network obtained after being trained on it.
 
