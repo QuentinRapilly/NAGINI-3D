@@ -8,8 +8,8 @@ from glob import glob
 from numpy import savez
 from omegaconf import OmegaConf
 
-from models.model import DeepBioSnake
-from data.th_optim_set import OptimSet
+from nagini3D.models.model import DeepBioSnake
+from nagini3D.data.th_optim_set import OptimSet
 
 
 if __name__ == "__main__":

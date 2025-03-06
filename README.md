@@ -6,7 +6,7 @@ We present NAGINI-3D (N-Active shapes for seGmentINg 3D biological Images), a me
 
 This repository provides the code described in the paper:
 - Quentin RAPILLY, Pierre MAINDRON, Guenaelle BOUET-CHALON, Anaïs BADOUAL, Charles KERVRANN.
-[*Prediction of Parametric Surfaces for Multi-Object Segmentation in 3D Biological Imaging*](TODO_ajouter_le_lien).
+[*Prediction of Parametric Surfaces for Multi-Object Segmentation in 3D Biological Imaging*](https://hal.science/hal-04978619).
 International Conference on Scale Space and Variational Methods in Computer Vision (SSVM), Totnes, England, May 2025.
 
 ## Method description
@@ -79,15 +79,17 @@ To install the package, run:
 
 `pip install nagini3D`
 
-## Applying the method
+## Using the method
 
 All the scripts are designed to process TIF images.
 
 ### Learning how to use the package using the jupyter notebooks
 
-We created jupyter notebooks to teach you how to infere new data, pre-process your data for training, train a model.
+We provide jupyter notebooks (in the [tutorials directory](/tutorials/)) to teach you how to infere new data, pre-process your data for training, train a model.
 
-TODO
+- [Inference notebook](/tutorials/inference.ipynb)
+- [Formating data notebook](/tutorials/format_data.ipynb)
+- [Training](/tutorials/training.ipynb)
 
 ### Applying our scrpits directly
 
