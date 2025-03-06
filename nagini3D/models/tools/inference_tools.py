@@ -30,7 +30,7 @@ def inside_contours(contours, img_dim):
 
     v1, v2, v3 = contours[:,:,0], contours[:,:,1], contours[:,:,2] # shape (batch, nb_facets, 3)
     p1, p2 = v1-v2, v3-v2                                          # same
-    n = torch.cross(p1,p2)                                         # same
+    n = torch.cross(p1,p2,dim=-1)                                         # same
     num = (v2*n).sum(dim=-1)
 
     B1 = torch.concat((p1[...,None],p2[...,None],n[...,None]), dim = -1) # attention a bien mettre les vecteurs de la base en colonne
@@ -79,7 +79,7 @@ def inside_contour_slow(contour, patch_dim):
 
     v1, v2, v3 = contour[:,0], contour[:,1], contour[:,2] # shape (nb_facets, 3)
     p1, p2 = v1-v2, v3-v2                                          # same
-    n = torch.cross(p1,p2)                                         # same
+    n = torch.cross(p1,p2, dim=-1)                                         # same
     num = (v2*n).sum(dim=-1)
 
     B1 = torch.concat((p1[...,None],p2[...,None],n[...,None]), dim = -1) # attention a bien mettre les vecteurs de la base en colonne
@@ -120,7 +120,7 @@ def inside_contour(contour, patch_dim):
 
     v1, v2, v3 = contour[:,0], contour[:,1], contour[:,2] # shape (nb_facets, 3)
     p1, p2 = v1-v2, v3-v2                                          # same
-    n = torch.cross(p1,p2)                                         # same
+    n = torch.cross(p1,p2, dim=-1)                                         # same
     num = (v2*n).sum(dim=-1)
 
     B1 = torch.concat((p1[...,None],p2[...,None],n[...,None]), dim = -1) # attention a bien mettre les vecteurs de la base en colonne

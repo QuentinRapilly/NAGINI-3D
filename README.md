@@ -94,6 +94,7 @@ We provide jupyter notebooks (in the [tutorials directory](/tutorials/)) to teac
 ### Applying our scrpits directly
 
 We provide all the scripts we used to make our experiments. To use it, we recommend installing an extended version of your package that contains additional packages:
+
 - **wandb** (to display training logs on wandb.ai, it requires creating an account),
 - **hydra** (used for configuration files management),
 - **tifffile** (used to load the tiff images).
@@ -107,6 +108,7 @@ The script [format_dataset.py](format_dataset.py) pre-processes the GT masks to 
 `python format_dataset.py -i <str: directory containing the masks> -o <str: directory to store the samplings and spot maps> -n <int (optionnal, default 101): number of points to sample on the surface> -v <bool: verbose>`
 
 Warnings:
+
 1. Here, the sampling procedure can produce any positive integer number of points. But the sampling procedure used for predicted surfaces (Fibonacci lattice) during training requires an odd number of sampled points. Make sure that the sampling size is greater or equal than the sampling size you will use during training.
 2. Make sur that your labels are indexed contiguously (no missing labels, ex: 1,2,4 but no mask correspond to index 3).
 
@@ -136,6 +138,7 @@ Run the file [inference_on_dir.py](inference_on_dir.py):
 `python inference_on_dir.py -i <images directory> -o <directory to store the results> -m <directory containing the trained model and its config file> -s <bool: weither to apply a snake optimisation step after the network prediction>`
 
 Optionnal parameters:
+
 - `-t <(float,float): probability threshold used to extract local maxima and NMS thresholds used to remove duplicates>`. If the training finished correctly, the last step consists in evaluating the best thresholds on the validation set, in this case, you don't need to provide this parameter.
 - `-tt <(int,int,int): number of tiles to do along each dimension>`. By default set to (1,1,1), can be useful to split some images in tiles if they are too big for your GPU/CPU.
 - `-ot <bool: if True, apply an Otsu binarization of the image before snake optimization>`. For sparse objects, this option improves drastically the results. For dense objects, keep it to False.

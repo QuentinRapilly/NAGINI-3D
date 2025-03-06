@@ -86,7 +86,7 @@ class Nagini3D():
 
 
     def load_weights(self, weights_file):
-        self.model.load_state_dict(torch.load(weights_file, map_location=self.device))
+        self.model.load_state_dict(torch.load(weights_file, map_location=self.device, weights_only=True))
     
     def normalize_img(self, img):
         return torch.tensor(normalize(img, pmin=1, pmax=99.8, axis=(0,1,2), clip=True), dtype=torch.float32, device=self.device)
