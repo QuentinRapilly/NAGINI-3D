@@ -8,15 +8,16 @@ from scipy.signal.windows import gaussian
 
 ### Creation of the convolution kernel used for fast-marching computation
 
-sampling_kernel = torch.zeros((18, 1, 3, 3, 3), dtype=torch.float32)
-idx_no = [0,2,6,8,13,18,20,24,26]
+sampling_kernel = torch.zeros((19, 1, 3, 3, 3), dtype=torch.float32)
+idx_no = [0,2,6,8,18,20,24,26]
 count = 0
 for p in range(27):
     if p not in idx_no:
-        i, tmp = p%3, p//3
-        j, k = tmp%3, tmp//3
+        k, tmp = p%3, p//3
+        j, i = tmp%3, tmp//3
         sampling_kernel[count, 0, i,j,k] = 1
         count += 1
+
 
 def gkern(std = (3,3,3), th = 0.05):
     """Returns a 3D Gaussian kernel array."""
@@ -34,14 +35,16 @@ def gkern(std = (3,3,3), th = 0.05):
     return (ker>th)*ker
 
 
-def farthest_point_sampling(contour_mask, nb_points = 51, anisotropy_ratio = None, device : str = "cpu" ):
-    if anisotropy_ratio == None:
-        anisotropy_ratio = torch.ones(())
+def farthest_point_sampling(contour_mask, nb_points = 51, device : str = "cpu", anisotropy = (1,1,1)):
+    ax, ay, az = anisotropy
+    crt_kern = torch.sqrt(torch.tensor([ax, 0, ax])[:,None,None]**2 + torch.tensor([ay, 0, ay])[None,:,None]**2 + torch.tensor([az, 0, az])[None,None,:]**2)
+    idx_ker = torch.ones((27), dtype=bool)
+    idx_ker[idx_no] = False
+    add_ker = (crt_kern.flatten()[idx_ker]).to(device)[:,None,None,None]
 
     device_kernel = sampling_kernel.to(device)
 
     nx,ny,nz = contour_mask.shape
-    N = contour_mask.sum()
     i, j, k = 0, 0, 0
 
     # finding starting point
@@ -58,31 +61,35 @@ def farthest_point_sampling(contour_mask, nb_points = 51, anisotropy_ratio = Non
 
     sampling_list = [[i,j,k]]
 
-    contour_tensor = torch.tensor(contour_mask, dtype=torch.float32, device=device).unsqueeze(0)
+    contour_tensor = torch.tensor(contour_mask, dtype=bool, device=device)
 
     # Adding points to the sampling list
     while len(sampling_list) < nb_points:
 
-        old_fast_marching = torch.zeros_like(contour_tensor)
+        old_fast_marching = torch.zeros_like(contour_tensor, dtype=torch.float32)
         new_fast_marching = old_fast_marching.clone()
         for i,j,k in sampling_list:
-            new_fast_marching[...,i,j,k] = N
+            new_fast_marching[i,j,k] = 1 # pseudo_inf
 
         # Computing fast marching algorithm
-        while (new_fast_marching - old_fast_marching).sum()!=0:
+        while ((new_fast_marching - old_fast_marching)*contour_tensor).sum()!=0:
             old_fast_marching = new_fast_marching.clone()
-            new_fast_marching = (conv3d(new_fast_marching, device_kernel, padding="same").max(dim=0)[0]-1)*contour_tensor
-            new_fast_marching = torch.max(old_fast_marching, new_fast_marching)
+            conv_step = (conv3d(new_fast_marching[None,...], device_kernel, padding="same"))
+            new_fast_marching = ((conv_step + add_ker.where(conv_step > 0, torch.inf)).min(dim=0)[0])
+            new_fast_marching = new_fast_marching.where((new_fast_marching<torch.inf)*contour_tensor, 0)
+            #new_fast_marching = new_fast_marching.where(contour_tensor, 0)
+            # new_fast_marching = torch.maximum(old_fast_marching, new_fast_marching)
+        
 
         # Choosing one of the farthest point to the sampling subset
-        tmp = (torch.ones_like(contour_tensor)-contour_tensor)*N + new_fast_marching
-        mini_list = (tmp==tmp.min()).nonzero() # prendre un indice random plutot que le premier
-        _,i,j,k = mini_list[randint(0,len(mini_list)-1)]
+        maxi_list = (new_fast_marching==new_fast_marching.max()).nonzero() # prendre un indice random plutot que le premier
+        i,j,k = maxi_list[randint(0,len(maxi_list)-1)]
 
         # Adding this point to the set
-        sampling_list.append(torch.tensor([i,j,k]).cpu().numpy())        
+        sampling_list.append([i.item(),j.item(),k.item()]) 
 
     return sampling_list
+
 
 
 distance_kernel = torch.zeros((6, 1, 3, 3, 3), dtype=torch.float32)
