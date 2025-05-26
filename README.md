@@ -151,3 +151,20 @@ To test the algorithm, we provide the CAPS dataset described in the article and 
 [Link to CAPS dataset.](https://zenodo.org/records/14931808?token=eyJhbGciOiJIUzUxMiJ9.eyJpZCI6IjlhYTBlMTRiLTI3YWMtNGIxNi1iNTQxLTcwNjFjMjFlYmE3YiIsImRhdGEiOnt9LCJyYW5kb20iOiI2MDdmMmQ3NzdjZWMyNDM1NTA4ZjI4OTUzYmQ3OWU3MiJ9.rJK8i6DmDl75V3fxJNIm63LeXsm0uHrOGoOc4mtiYOxBLGSAzfzfu04QlZft5eKr38c-r8exYpDE_ZqqBURldg)
 
 [Link to the network config file and weights after being trained on CAPS (+optimal thresholds used for inference).](https://zenodo.org/records/14932135?token=eyJhbGciOiJIUzUxMiJ9.eyJpZCI6IjQ5YjY5Mzc0LWRhOWUtNGExZi05YmQ4LTMxOWI1ZWFjYTFiMCIsImRhdGEiOnt9LCJyYW5kb20iOiIzMTNhODA1ZjEzZTYwZDRjNWRhMjMzYzk4MDkxYTIwYyJ9.m8pDDXwVZarpL_sEgtrvMztJgMBaQa_VkusZTIROr-BqkyUI8WNp7MqQI22Si1OfxWNIhp8ei6SCVJFI83iWJg)
+
+## How to cite this method
+
+```bibtex
+@InProceedings{10.1007/978-3-031-92366-1_20,
+author="Rapilly, Quentin and Badoual, Ana{\"i}s and Maindron, Pierre and Bouet, Guenaelle and Kervrann, Charles",
+editor="Bubba, Tatiana A. and Gaburro, Romina and Gazzola, Silvia and Papafitsoros, Kostas and Pereyra, Marcelo and Sch{\"o}nlieb, Carola-Bibiane",
+title="Prediction of Parametric Surfaces for Multi-object Segmentation in 3D Biological Imaging",
+booktitle="Scale Space and Variational Methods in Computer Vision",
+year="2025",
+publisher="Springer Nature Switzerland",
+address="Cham",
+pages="255--268",
+isbn="978-3-031-92366-1"
+}
+
+```

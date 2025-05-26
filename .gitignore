@@ -1,0 +1,4 @@
+/dist
+*.sif
+*__pycache__
+*.pyc
