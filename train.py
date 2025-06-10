@@ -45,12 +45,16 @@ def train(cfg : DictConfig):
     if min_cell_ratio is None:
         min_cell_ratio = 0
 
+    patch_size = [int(x) for x in cfg["data"]["patch_size"]]
 
-    train_set = TrainingSet(nb_points=P, patch_size=cfg["data"]["patch_size"], dataset_dir=cfg["data"]["train"],
-                            data_aug=cfg["data"]["data_aug"], cell_ratio_th=min_cell_ratio)
-    val_set = TrainingSet(nb_points=P, r_mean=train_set.r_mean,  patch_size=cfg["data"]["patch_size"],\
+    anisotropy = [float(x) for x in cfg["data"]["anisotropy"].split(",")]
+
+
+    train_set = TrainingSet(nb_points=P, patch_size=patch_size, dataset_dir=cfg["data"]["train"],
+                            data_aug=cfg["data"]["data_aug"], cell_ratio_th=min_cell_ratio, anisotropy_ratio=anisotropy)
+    val_set = TrainingSet(nb_points=P, r_mean=train_set.r_mean,  patch_size=patch_size,\
                             data_aug=cfg["data"]["data_aug"], dataset_dir=cfg["data"]["val"],
-                            cell_ratio_th=min_cell_ratio)
+                            cell_ratio_th=min_cell_ratio, anisotropy_ratio=anisotropy)
 
 
     print(f"Mean radius of cells : {round(train_set.r_mean,3)}")

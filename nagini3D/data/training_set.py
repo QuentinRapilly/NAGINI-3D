@@ -15,7 +15,7 @@ INT_TYPE = np.uint16
 
 class TrainingSet(Dataset):
 
-    def __init__(self, dataset_dir : str, patch_size : int, nb_points : int = 101, anisotropy_ratio : list = [1,1,1],
+    def __init__(self, dataset_dir : str, patch_size : list, nb_points : int = 101, anisotropy_ratio : list = [1,1,1],
                  r_mean = None, data_aug : bool = True, cell_ratio_th = 0.0, **kwargs) -> None:
         super().__init__()
 
@@ -26,14 +26,15 @@ class TrainingSet(Dataset):
         self.patch_size = patch_size
         self.nb_points = nb_points
         self.data_aug = data_aug
-        self.anisotropy_ratio = np.array([[anisotropy_ratio]])
+
+        self.is_isotropic = (anisotropy_ratio == None)
+        self.anisotropy_ratio = np.array([[[1,1,1]]]) if self.is_isotropic else np.array(anisotropy_ratio)[None,None,:]
 
         self.imgs_list = sorted(glob(join(self.images_dir, "*.tif")))
 
         self.samplings_list = glob(join(self.samplings_dir, "*.npz"))
 
         self.cell_ratio_th = cell_ratio_th
-
 
         if r_mean != None:
             self.r_mean = r_mean
@@ -58,10 +59,10 @@ class TrainingSet(Dataset):
 
     def crop_image(self, img) -> tuple:
         nx,ny,nz = img.shape 
-        M = self.patch_size
-        x_max, y_max, z_max = nx-M, ny-M, nz-M
+        Mx, My, Mz = self.patch_size
+        x_max, y_max, z_max = nx-Mx, ny-My, nz-Mz
         x, y, z = randint(0, x_max), randint(0, y_max), randint(0, z_max)
-        return img[x:x+M, y:y+M, z:z+M], (x,y,z)
+        return img[x:x+Mx, y:y+My, z:z+Mz], (x,y,z)
 
     def __getitem__(self, index) -> Any:
         img_path = self.imgs_list[index]
@@ -80,28 +81,28 @@ class TrainingSet(Dataset):
         full_samplings = samplings_arrays["samplings"]
         full_centers = samplings_arrays["centers"]
 
-        M = self.patch_size
+        Mx, My, Mz = self.patch_size
 
         mask, (x,y,z) = self.crop_image(full_mask)
         mask = mask.astype(INT_TYPE)
 
         if self.cell_ratio_th != 0: # avoid to compute the sum when one chooses the ratio equal to 0 (i.e. no verification)
-            cell_ratio_in_mask = (mask>0).sum()/M**3
+            cell_ratio_in_mask = (mask>0).sum()/(Mx*My*Mz)
             while cell_ratio_in_mask < self.cell_ratio_th:
                 mask, (x,y,z) = self.crop_image(full_mask)
                 mask = mask.astype(INT_TYPE)
-                cell_ratio_in_mask = (mask>0).sum()/M**3
+                cell_ratio_in_mask = (mask>0).sum()/(Mx*My*Mz)
 
 
-        proba = full_proba[x:x+M, y:y+M, z:z+M].astype(FLOAT_TYPE)
-        img = full_img[x:x+M, y:y+M, z:z+M].astype(FLOAT_TYPE)
+        proba = full_proba[x:x+Mx, y:y+My, z:z+Mz].astype(FLOAT_TYPE)
+        img = full_img[x:x+Mx, y:y+My, z:z+Mz].astype(FLOAT_TYPE)
 
         unique_lbls = np.unique(full_mask)[1:]
         lbls = np.arange(unique_lbls[-1]+1, dtype=int)
         lbls[unique_lbls] = np.arange(len(unique_lbls), dtype=int)
 
 
-        if self.data_aug:
+        if self.data_aug and self.is_isotropic:
             theta1, theta2, theta3 = randint(0,3), randint(0,3), randint(0,3)
             angles = (theta1, theta2, theta3)
 
@@ -109,7 +110,6 @@ class TrainingSet(Dataset):
             proba = rotate_image(proba, angles).copy()
             mask = rotate_image(mask, angles).copy()
         
-        S = self.patch_size/np.array(mask.shape)
 
         cell_voxels = mask.nonzero()
         voxels_coordinates = np.stack(cell_voxels).T
@@ -121,15 +121,15 @@ class TrainingSet(Dataset):
         tmp_samplings = full_samplings[voxels_idx,:self.nb_points] 
 
         
-        if self.data_aug:
+        if self.data_aug and self.is_isotropic:
             R = generate_rotation_matrix(theta1*np.pi/2, theta2*np.pi/2, theta3*np.pi/2)
-            centering_shift = (self.patch_size-1)/2
+            centering_shift = (self.patch_size[0]-1)/2
             voxels_barycenters = (R@(voxels_barycenters-centering_shift).T).T + centering_shift
             tmp_samplings = np.reshape(((R@np.reshape(tmp_samplings,(-1,3)).T).T), tmp_samplings.shape)
 
 
-        voxels_samplings = ((tmp_samplings + voxels_barycenters[:,None,:]\
-                             - voxels_coordinates[:,None,:]*S)/self.r_mean).astype(FLOAT_TYPE)
+        voxels_samplings = (((tmp_samplings + voxels_barycenters[:,None,:]\
+                             - voxels_coordinates[:,None,:]+0.5)*self.anisotropy_ratio-0.5)/self.r_mean).astype(FLOAT_TYPE)
     
 
 
@@ -147,3 +147,57 @@ def custom_collate(batch):
         "voxels_proba" : torch.cat([item["voxels_proba"] for item in batch]),
         "cell_voxels" : [item["cell_voxels"] for item in batch]
     }
+
+
+# if __name__ == "__main__":
+#     path = ""
+#     anisotropy = [1,1,2]
+#     dataset = TrainingSet(dataset_dir=path, patch_size=50, nb_points=61, anisotropy_ratio=anisotropy)
+
+#     item = dataset[1]
+
+#     img = item["image"]
+#     proba = item["proba"]
+#     samplings = item["voxels_samplings"]
+#     vox_proba = item["voxels_proba"]
+#     cell_vox = item["cell_voxels"]
+
+#     gamma = (np.array(img.shape)[1:]/np.array(proba.shape))
+#     coor = (np.stack(cell_vox).T)*gamma
+
+#     N = samplings.shape[0]
+
+#     points_to_plot = list()
+
+#     random_idx = [k for k in range(N)]
+#     from random import shuffle
+#     shuffle(random_idx)
+
+    
+
+
+#     for i in random_idx[:5]:
+#         s = samplings[i]
+#         c = coor[i]
+#         s_shifted = s*dataset.r_mean + c[None,:]*np.array([anisotropy])
+        
+#         # print(s)
+#         points_to_plot.append(s_shifted)
+
+
+#     # print(len(cell_vox[0])/(proba==0).sum())
+
+    
+    
+#     import napari
+#     from skimage.transform import rescale
+#     img = rescale(img[0].numpy(), anisotropy)
+#     viewer = napari.view_image(img, ndisplay=2)
+#     #viewer.add_image(proba.numpy())
+
+#     #viewer.add_points(coor, face_color="red", size=1)
+#     viewer.add_points(np.concatenate(points_to_plot), face_color="red", size=1)
+#     #viewer.add_points(coor*np.array([anisotropy]),size = 1, face_color="green")
+    
+
+#     napari.run()

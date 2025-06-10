@@ -37,6 +37,7 @@ if __name__ == "__main__":
     parser.add_argument("-s", "--sampling", type=str2bool, nargs="?", default=True, const=True, help="bool: weither the sampling step should be done or not")
     parser.add_argument("-p", "--proba", type=str2bool, nargs="?", default=True, const=True, help="bool: weither the probability step should be done or not")
     parser.add_argument("-v", "--verbose", type=str2bool, nargs="?", default=False, const=True, help="bool: weither to print logs of the sampling procedure")
+    parser.add_argument("-a", "--anisotropy", default="1,1,1", help="str: If your images are strongly anisotropic, precise the anisotropy ratio between axis (with float greater or equal than 1, separated by commas, ex:1,3,1)")
 
     args = parser.parse_args()
 
@@ -46,6 +47,7 @@ if __name__ == "__main__":
     do_sample = args.sampling
     do_proba = args.proba
     verbose = args.verbose
+    anisotropy = [float(x) for x in args.anisotropy.split(",")]
 
     device = "cuda" if is_available() else "cpu"
 
@@ -115,7 +117,7 @@ if __name__ == "__main__":
                         proba_map += masked_dist
 
             if do_sample:
-                sampling = farthest_point_sampling(small_contour, nb_sampling, device = device)
+                sampling = farthest_point_sampling(small_contour, nb_sampling, device = device, anisotropy=anisotropy)
                 centered_sampling = np.array(sampling) + np.array([x_min, y_min, z_min]) - np.array([barycenter])
                 sampling_list.append(centered_sampling)
 

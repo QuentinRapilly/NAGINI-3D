@@ -5,13 +5,20 @@ We present NAGINI-3D (N-Active shapes for seGmentINg 3D biological Images), a me
 <img src="https://github.com/QuentinRapilly/NAGINI-3D/blob/main/images/logo/nagini.png" title="NAGINI Logo" width="25%" align="right">
 
 This repository provides the code described in the paper:
+
 - Quentin RAPILLY, Anaïs BADOUAL,Pierre MAINDRON, Guenaelle BOUET, Charles KERVRANN.
-[*Prediction of Parametric Surfaces for Multi-Object Segmentation in 3D Biological Imaging*](https://hal.science/hal-04978619).
-International Conference on Scale Space and Variational Methods in Computer Vision (SSVM), Totnes, England, May 2025.
+*Prediction of Parametric Surfaces for Multi-Object Segmentation in 3D Biological Imaging*.
+Scale Space and Variational Methods in Computer Vision. SSVM 2025. Lecture Notes in Computer Science, vol 15667, Devon, UK, May 2025,
+[(preprint)](https://hal.science/hal-04978619), [(final paper)](https://link.springer.com/chapter/10.1007/978-3-031-92366-1_20).
+
+## Updates
+
+**Version 0.1.1:** the method can now be trained more easily on highly anisotropic images.
 
 ## Method description
 
 Our approach consists in training a U-Net to:
+
 1. locate the objects of interest in a 3D image using a predicted probability map $\hat{p}$,
 2. for each object, predict a set of control points $\lbrace\hat{\boldsymbol{f}}\_{\boldsymbol{x},i}\rbrace\_i$ describing a parametric surface $\hat{\boldsymbol{s}}\_{\boldsymbol{x}}$ representing the object located in $\boldsymbol{x}$,
 3. (optionnal) a snake optimisation procedure based on image gradient can be used to optimize the surfaces.
@@ -67,7 +74,7 @@ Using GPU: `conda install pytorch=1.13 pytorch-cuda=11.6 -c pytorch -c nvidia` (
 
 To make sure your GPU is available, open a Python prompt and run the following commands:
 
-```
+```python
 from torch.cuda import is_available
 cuda_working = "yes" if is_available() else "no"
 print(f"GPU working: {cuda_working}")
@@ -116,7 +123,7 @@ Warnings:
 
 The repository containing each dataset (training, test, validation) should be organized as follow:
 
-```
+```txt
 directory_of_the_set
 |--images     (directory containing the images of the set)
 |--masks      (directory containing the masks, with the same name as the corresponding image)
@@ -143,12 +150,13 @@ Optionnal parameters:
 - `-tt <(int,int,int): number of tiles to do along each dimension>`. By default set to (1,1,1), can be useful to split some images in tiles if they are too big for your GPU/CPU.
 - `-ot <bool: if True, apply an Otsu binarization of the image before snake optimization>`. For sparse objects, this option improves drastically the results. For dense objects, keep it to False.
 
+## Dataset
 
-## Dataset and pre-trained weights
-
-To test the algorithm, we provide the CAPS dataset described in the article and the weights of the network obtained after being trained on it.
+To test the algorithm, we provide the CAPS dataset described in the article (the weights of the network obtained after being trained on it are provided in the next sectio).
 
 [Link to CAPS dataset.](https://zenodo.org/records/14931808?token=eyJhbGciOiJIUzUxMiJ9.eyJpZCI6IjlhYTBlMTRiLTI3YWMtNGIxNi1iNTQxLTcwNjFjMjFlYmE3YiIsImRhdGEiOnt9LCJyYW5kb20iOiI2MDdmMmQ3NzdjZWMyNDM1NTA4ZjI4OTUzYmQ3OWU3MiJ9.rJK8i6DmDl75V3fxJNIm63LeXsm0uHrOGoOc4mtiYOxBLGSAzfzfu04QlZft5eKr38c-r8exYpDE_ZqqBURldg)
+
+## Pre-trained weights
 
 [Link to the network config file and weights after being trained on CAPS (+optimal thresholds used for inference).](https://zenodo.org/records/14932135?token=eyJhbGciOiJIUzUxMiJ9.eyJpZCI6IjQ5YjY5Mzc0LWRhOWUtNGExZi05YmQ4LTMxOWI1ZWFjYTFiMCIsImRhdGEiOnt9LCJyYW5kb20iOiIzMTNhODA1ZjEzZTYwZDRjNWRhMjMzYzk4MDkxYTIwYyJ9.m8pDDXwVZarpL_sEgtrvMztJgMBaQa_VkusZTIROr-BqkyUI8WNp7MqQI22Si1OfxWNIhp8ei6SCVJFI83iWJg)
 

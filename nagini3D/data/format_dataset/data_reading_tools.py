@@ -75,8 +75,8 @@ def farthest_point_sampling(contour_mask, nb_points = 51, device : str = "cpu", 
         while ((new_fast_marching - old_fast_marching)*contour_tensor).sum()!=0:
             old_fast_marching = new_fast_marching.clone()
             conv_step = (conv3d(new_fast_marching[None,...], device_kernel, padding="same"))
-            new_fast_marching = ((conv_step + add_ker.where(conv_step > 0, torch.inf)).min(dim=0)[0])
-            new_fast_marching = new_fast_marching.where((new_fast_marching<torch.inf)*contour_tensor, 0)
+            new_fast_marching = ((conv_step + torch.where(conv_step > 0, add_ker, torch.inf)).min(dim=0)[0])
+            new_fast_marching = torch.where((new_fast_marching<torch.inf)*contour_tensor, new_fast_marching, 0)
             #new_fast_marching = new_fast_marching.where(contour_tensor, 0)
             # new_fast_marching = torch.maximum(old_fast_marching, new_fast_marching)
         

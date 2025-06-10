@@ -86,6 +86,12 @@ class Nagini3D():
 
 
     def load_weights(self, weights_file):
+        """
+        Load in the model the weights stored during a training
+
+        Input:
+        -weights_file: path to the weights file
+        """
         self.model.load_state_dict(torch.load(weights_file, map_location=self.device, weights_only=True))
     
     def normalize_img(self, img):
@@ -93,6 +99,9 @@ class Nagini3D():
     
 
     def epoch(self, data_loader : torch.utils.data.DataLoader):
+        """
+        Run a training epoch and return a dictionnary storing the different losses.
+        """
         
         infos = {"spots" : 0, "snakes" : 0, "regularization" : 0, "loss" : 0}
 
@@ -155,6 +164,13 @@ class Nagini3D():
         return infos
     
     def val(self, data_loader : torch.utils.data.DataLoader, nb_cells_to_plot : int = 4):
+        """
+        Run a validation step and return a dictionnary storing the different losses.
+
+        Input:
+        - data_loader: validation data loader,
+        - nb_cells_to_plot: if WandB is used, this parameter correspond to the number of 3D point clouds to plot to visualize the accuracy of the predicted surfaces.
+        """
         infos = {"spots" : 0, "snakes" : 0, "regularization" : 0, "loss" : 0}
         nb_batches = len(data_loader) # Nb of batches
 
@@ -220,6 +236,21 @@ class Nagini3D():
     
 
     def apply_network(self, img, proba_th, GT_centers = None, predict_centers = True, nb_tiles = (1,1,1), overlap_ratio = 0.1):
+
+        """
+        Apply the UNet to get the score map and the surface parameters and return the surface parameters at the score map local maxima.
+        
+        Input:
+        - img: np.array(width,height,depth), 3D image to segment
+        - proba_th: float, threshold used for object detection (computed automatically on validation set)
+        - GT_centers: if provided, will also return the surface parameters at the provided centers
+        - predict_centers: bool, if True detect the centers (maxima of the score map)
+        - nb_tiles: (int, int,int), number of splits on each dimension to make tiles with the image if it is too big to process in a single time
+        - overlap_ratio: float in [0,1], ratio of the tile size to overlap with the previous/next tile 
+        
+        Output:
+        - dict{"proba", "pred"{"centers", "surface_parameters"}, "GT"{"centers", "surface_parameters"}}
+        """
 
         img = self.normalize_img(img)
 
@@ -330,6 +361,18 @@ class Nagini3D():
         return result
     
     def create_mask(self, img_shape, centers, samplings, facets, nms_th = None, d_mask = 3):
+
+        """
+        Create a mask with the same shape as the input image with labels representing the inside of each predicted surfaces.
+        
+        Input:
+        - img_shape: (int,int,int), shape of the initial input image;
+        - centers: torch.tensor(n,3), centers of the predicted surfaces
+        - samplings: torch.tensor(n,P,3), points sampled on the predicted surfaces
+        - facets: torch.tensor(K,3), facets represented by the indexes of the points which are vertices of the facet,
+        - nms_th: float in [0,1], Non-Maximum-Suppression threshold, if two object have an IoU greater only one will be kept
+        """
+
         mask_pred = torch.zeros(img_shape, dtype=torch.int32, device=self.device)
         Nx, Ny, Nz = img_shape
         nb_centers = len(centers)
@@ -372,6 +415,22 @@ class Nagini3D():
     
 
     def optimize_snake(self, img, centers, surf_param, gamma = 0.01, nb_steps = None, up_sampling_ratio = 2, otsu_th : bool = True):
+
+        """
+        Apply the snake refinement step on the image using the previously computed surfaces.
+
+        Input:
+        - img: np.array(width,height,depth), 3D image used to apply the refinement process
+        - centers: np.array(n,3), centers of all the predicted surfaces
+        - surf_param: np.array(n,P,3), surface parameters/control points of all the predicted surfaces
+        - gamma: float, step of the gradient optimization of the surface parameters
+        - n_steps: int(optional), number of steps applied to optimimze the surface parameters (if not provided, computed using gamma)
+        - up_sampling_ratio: int>=1, parameter controling the quantity of additional control points, number of initial points is approximately multiplied by up_sampling_ratio^2
+        - otsu_th: bool, weither to apply otsu thresholding to img
+
+        Output:
+        - tuple(points, facets, values), parameters of the optimized surfaces, points are the position of sampled points on the surface, 
+        """
 
         new_M1, new_M2 = self.M1*up_sampling_ratio, self.M2*up_sampling_ratio
         new_I = new_M1*(new_M2-1)+6
@@ -420,26 +479,50 @@ class Nagini3D():
 
                 up_surf_param = up_surf_param - gamma*Dfi
 
-        return up_sampler.draw_surface(up_surf_param, points_per_dim=(20,10))
+        generated_surf = up_sampler.draw_surface(up_surf_param, points_per_dim=(20,10))
+        return up_surf_param, generated_surf
     
-    def inference(self, img, proba_th, r_mean, nb_tiles, overlap_ratio = 0.1, nms_th = 0.4, d_mask = 3,
-                  optim_snake = True, use_otsu = True):
-
-        result = self.apply_network(img, proba_th=proba_th, nb_tiles=nb_tiles, overlap_ratio=overlap_ratio)
+    def inference(self, img, proba_th, r_mean, nb_tiles, overlap_ratio = 0.1, nms_th = 0.4, 
+                  optim_snake = True, use_otsu = True, d_mask = 3, anisotropy = [1,1,1]):
+        """
+        Apply the model to a new image.
         
+        Input:
+        - img: np.array(width,height,depth), 3D image to segment
+        - proba_th: float, threshold used for object detection (computed automatically on validation set)
+        - r_mean: float, mean radius of the objects used to train the model (stored in the config file during training)
+        - nb_tiles: (int, int,int), number of splits on each dimension to make tiles with the image if it is too big to process in a single time
+        - overlap_ratio: float in [0,1], ratio of the tile size to overlap with the previous/next tile 
+        - nms_th: float in [0,1], Non-Maximum-Suppression threshold, if two object have an IoU greater only one will be kept
+        - optim_snake: bool, weither to process snake refinement after network prediction
+        - use_otsu: bool, weither to apply Otsu thresholding on image before refinement (improves results if objects are sparse)
+        
+        Output:
+        - mask: np.array(width,height,depth), 3D mask associating a label to each voxel
+        - proba: np.array(width,height,depth), 3D map associating a score to be the center of an object to each voxel
+        - parameters: dict{"centers", "parameters"}, a dict containing the centers and parameters of the predicted surfaces
+        - surfaces: dict{"points", "facets", "values"}, a dict containing the points, facets and values required to reconstruct the surfaces using napari
+        """
+
+        with torch.no_grad():
+            result = self.apply_network(img, proba_th=proba_th, nb_tiles=nb_tiles, overlap_ratio=overlap_ratio)
+        
+        anisotropy_vec = np.array(anisotropy)
+        anisotropy_ten = torch.tensor(anisotropy_vec, device=self.device)[None,None,...]
 
         centers, surf_parameters = result["pred"]["centers"], result["pred"]["surface_parameters"]
 
         if optim_snake:
-            samplings, facets, values = self.optimize_snake(img, centers, r_mean*surf_parameters, otsu_th=use_otsu)
+            surf_parameters, new_surfaces = self.optimize_snake(img, centers, r_mean*surf_parameters/anisotropy_ten, otsu_th=use_otsu)
+            samplings, facets, values = new_surfaces
         else:
-            samplings, facets, values = self.sampler.draw_surface(free_parameters=r_mean*surf_parameters, points_per_dim=(20,10))
+            samplings, facets, values = self.sampler.draw_surface(free_parameters=r_mean*surf_parameters/anisotropy_ten, points_per_dim=(20,10))
         
         mask, samplings, _, _ = self.create_mask(img.shape, centers=centers, samplings=samplings,\
                                            nms_th=nms_th, facets=facets, d_mask=d_mask)
 
-        return mask, result["proba"], {"points" : samplings.cpu().numpy(), "facets" : facets.cpu().numpy(),\
-                             "values" : values.cpu().numpy()}
+        return mask.cpu().numpy(), result["proba"].cpu().numpy(), {"centers" : centers, "parameters": surf_parameters},\
+            {"points" : samplings.cpu().numpy(), "facets" : facets.cpu().numpy(), "values" : values.cpu().numpy()}
     
 
     def predict_on_points(self, img, choosen_points, r_mean, nb_tiles, overlap_ratio = 0.1, d_mask = 3):
@@ -456,6 +539,18 @@ class Nagini3D():
         
     def optimize_thresholds(self, optim_set, r_mean, nms_th = [0.3,0.5,0.7], nb_tiles = (1,1,1),
                             iou_bins = [0.0,0.2,0.4,0.6,0.8,1.0], maxiter = 20):
+        """
+        Compute the optimal probability and NSM thresholds on a given dataset.
+
+        Input:
+        - optim_set: instance of OptimSet(Dataset), dataset on which to apply the optimization process
+        - r_mean: float, mean radius of the objects used to train the model (stored in the config file during training)
+        - nb_tiles: (int, int,int), number of splits on each dimension to make tiles with the image if it is too big to process in a single time
+        - nms_th: list[float], list of possible values tested for NMS threshold
+
+        Output:
+        - optim_th: dict{"prob", "nms"}, dictionnary storing the optim proba and NMS threshold computed
+        """
         
         proba_max = max([(self.apply_network(optim_set[n][0], proba_th=0.5, predict_centers=False,\
                                              nb_tiles=nb_tiles,))["proba"].max() for n in range(len(optim_set))])

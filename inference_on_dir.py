@@ -32,6 +32,7 @@ if __name__ == "__main__":
     parser.add_argument("-tt", "--thresholds", default="none", help="(float,float): precise the prob and nms thresholds to use if you don't want to appply the optimized ones (ex : 0.5,0.5)")
     parser.add_argument("-s", "--snake", type=str2bool, default=True, help="bool: weither to apply the snake refinement step")
     parser.add_argument("-ot", "--otsu", type=str2bool, default=True, help="bool: weither to apply otsu thresholding on image before snake refinement, more precise for sparse objects, less precise for dense objects.")
+    parser.add_argument("-a", "--anisotropy", type=str, default="1,1,1", help="float,float,float: anisotrpoy ratio along each axis")
 
     args = parser.parse_args()
 
@@ -43,6 +44,8 @@ if __name__ == "__main__":
 
     use_snake = args.snake
     use_otsu = args.otsu
+
+    anisotropy = [float(x) for x in args.anisotropy.split(",")]
 
     model_name = basename(normpath(model_dir))
 
@@ -91,8 +94,8 @@ if __name__ == "__main__":
 
         print(f"Processing image : {img_name}")
 
-        mask, proba, points = model.inference(img, proba_th=proba_th, r_mean=r_mean, nb_tiles=nb_tiles,\
-                                              nms_th=nms_th, optim_snake=use_snake, otsu=use_otsu)
+        mask, proba, parameters, surfaces = model.inference(img, proba_th=proba_th, r_mean=r_mean, nb_tiles=nb_tiles,\
+                                              nms_th=nms_th, optim_snake=use_snake, otsu=use_otsu, anisotropy=anisotropy)
 
 
         mask_path = join(result_path, img_name)
@@ -100,4 +103,4 @@ if __name__ == "__main__":
         surfaces_path = join(result_path, "surf_"+name+".npz")
         tifffile.imwrite(mask_path, mask.cpu().numpy())
         tifffile.imwrite(proba_path, proba.cpu().numpy())
-        savez(surfaces_path, points = points["points"], facets = points["facets"], values = points["values"])
+        savez(surfaces_path, points = surfaces["points"], facets = surfaces["facets"], values = surfaces["values"])
