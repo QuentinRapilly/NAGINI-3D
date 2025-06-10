@@ -20,7 +20,7 @@ Scale Space and Variational Methods in Computer Vision. SSVM 2025. Lecture Notes
 Our approach consists in training a U-Net to:
 
 1. locate the objects of interest in a 3D image using a predicted probability map $\hat{p}$,
-2. for each object, predict a set of control points $\lbrace\hat{\bm{f}}\_{\bm{x},i}\rbrace\_i$ describing a parametric surface $\hat{\boldsymbol{s}}\_{\boldsymbol{x}}$ representing the object located in $\boldsymbol{x}$,
+2. for each object, predict a set of control points $\lbrace\hat{{f}}\_{{x},i}\rbrace\_i$ describing a parametric surface $\hat{\boldsymbol{s}}\_{\boldsymbol{x}}$ representing the object located in $\boldsymbol{x}$,
 3. (optionnal) a snake optimisation procedure based on image gradient can be used to optimize the surfaces.
 
 To evaluate the loss used to train the network, the Ground-Truth (GT) probability/spots map $p$ and a sampling $S$ representing each object of the training dataset are required. Some tools available in this Github will help you pre-process your data to create them.
