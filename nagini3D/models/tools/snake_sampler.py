@@ -2,7 +2,12 @@ import numpy as np
 import torch
 from math import pi, cos, sin
 
-from .snake_tools import (create_exponential_spline, create_periodic_exponential_spline)
+from .snake_tools import (create_exponential_spline,
+                          create_periodic_exponential_spline,
+                          create_exponential_spline_derivative,
+                          create_periodic_exponential_spline_derivative,
+                          create_exponential_spline_second_derivative,
+                          create_periodic_exponential_spline_second_derivatives)
 
 class SnakeSmoothSampler():
     def __init__(self, P, M1, M2=None, device = "cpu"):
@@ -40,7 +45,26 @@ class SnakeSmoothSampler():
         self.phi = create_exponential_spline(2*M2)
         self.phi_weights = self.phi(M2*self.v-j).unsqueeze(1)
 
+        self.phi_per_prime = create_periodic_exponential_spline_derivative(M1)
+        self.phi_prime = create_exponential_spline_derivative(2*M2)
+
+        self.phi_per_prime2 = create_periodic_exponential_spline_second_derivatives(M1)
+        self.phi_prime2 = create_exponential_spline_second_derivative(2*M2)
+
+        phi_per_weights_prime = M1*self.phi_per_prime(M1*self.u-i).unsqueeze(2)
+        phi_weights_prime = M2*self.phi_prime(M2*self.v-j).unsqueeze(1)
+
+        phi_per_weights_prime2 = M1*self.phi_per_prime2(M1*self.u-i).unsqueeze(2)
+        phi_weights_prime2 = M2*self.phi_prime2(M2*self.v-j).unsqueeze(1)
+
         self.weights = (self.phi_per_weights*self.phi_weights).unsqueeze(0)[...,None].to(device)
+
+        self.du = (phi_per_weights_prime*self.phi_weights).unsqueeze(0)[...,None].to(device)
+        self.dv = (self.phi_per_weights*phi_weights_prime).unsqueeze(0)[...,None].to(device)
+
+        self.dudv = (phi_per_weights_prime*phi_weights_prime).unsqueeze(0)[...,None].to(device)
+        self.du2 = (phi_per_weights_prime2*self.phi_weights).unsqueeze(0)[...,None].to(device)
+        self.dv2 = (self.phi_per_weights*phi_weights_prime2).unsqueeze(0)[...,None].to(device)
 
         gamma = 2*(1-cos(2*pi/M1))/(cos(pi/M1)-cos(3*pi/M1))
         self.cM1 = gamma*torch.cos(2*torch.pi*i/M1)[...,None]
@@ -251,6 +275,49 @@ class SnakeSmoothSampler():
         values = (torch.cos(2*torch.pi*u)+torch.cos(torch.pi*v).squeeze()[None,...]).reshape(-1)
 
         return points, facets, values
+    
+    def get_derivatives(self, free_parameters):
+        cp = self.free_parameters_to_cp(free_parameters=free_parameters)
+
+        ds_du = (cp*self.du).sum(dim=(-2,-3))/(torch.cos(pi*(0.5-self.v))[None,:])
+        ds_dv = 2*(cp*self.dv).sum(dim=(-2,-3))
+
+        return ds_du, ds_dv
+    
+    def get_second_derivatives(self, free_parameters):
+        cp = self.free_parameters_to_cp(free_parameters=free_parameters)
+
+        ds_du2 = (cp*self.du2).sum(dim=(-2,-3))/((torch.cos(pi*(0.5-self.v))**2)[None,:])
+        ds_dv2 = 4*(cp*self.dv2).sum(dim=(-2,-3))
+        ds_dudv = 2*(cp*self.dudv).sum(dim=(-2,-3))/(torch.cos(pi*(0.5-self.v))[None,:])
+
+        return ds_du2, ds_dv2, ds_dudv
+
+    def get_curvature(self, free_parameters):
+        T1, T2 = self.get_derivatives(free_parameters=free_parameters)
+        det_I1 = (T1*T1).sum(dim=-1) + (T2*T2).sum(dim=-1) - 2*(T1*T2).sum(dim=-1)
+
+        n = torch.cross(T1, T2, dim=-1)
+        n_tilde = n/torch.norm(n, dim=-1, keepdim=True)
+
+        ds_du2, ds_dv2, ds_dudv = self.get_second_derivatives(free_parameters=free_parameters)
+        det_I2 = (ds_du2*n_tilde).sum(dim=-1) + (ds_dv2*n_tilde).sum(dim=-1) - 2*(ds_dudv*n_tilde).sum(dim=-1)
+
+        kappa = det_I2/det_I1
+
+        return kappa
+    
+    def get_curvature_and_position(self, free_parameters):
+        kappa = self.get_curvature(free_parameters)
+        pos = self.sample_snakes(free_parameters)
+
+        P = self.P
+        N = (P-1)//2
+
+        mask = np.ones((P), dtype=bool)
+        mask[N] = False
+
+        return pos[mask], kappa[mask]
 
     
 if __name__ == "__main__":

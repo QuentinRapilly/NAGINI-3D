@@ -67,3 +67,70 @@ def create_polynomials():
     
     return basis_function
 
+def create_exponential_spline_derivative(M):
+
+    def basis_function_t(t):
+        abs_t = torch.abs(t)
+
+        mask_0 = create_interval_mask(abs_t, 0, 0.5)
+        values_0 = mask_0*((-2*pi)/M)*torch.sin(2*pi*t/M)*cos(pi/M)
+
+        mask_1 = create_interval_mask(t, 0.5, 1.5)
+        mask_2 = create_interval_mask(-t, 0.5, 1.5)
+        mask = (mask_2 - mask_1)
+        values_1 = mask*(pi/M)*torch.sin(2*pi*(3/2-abs_t)/M)
+
+        phi_M_t = 1/(1-cos(2*pi/M))*(values_0 + values_1)
+
+        return phi_M_t
+
+    return basis_function_t
+
+def create_periodic_exponential_spline_derivative(M):
+
+    basis_fct_aux = create_exponential_spline_derivative(M)
+
+    # sufficient to use this support because for other indices the function is null everywhere
+    n_min = -1
+    n_max = 1
+
+    def basis_periodic_function(t):
+        phi_t = 0
+        for n in range(n_min,n_max+1):
+            phi_t = phi_t + basis_fct_aux(t-M*n)
+        return phi_t
+
+    return basis_periodic_function
+
+def create_exponential_spline_second_derivative(M):
+
+    def basis_function_t(t):
+        abs_t = torch.abs(t)
+        mask_0 = create_interval_mask(abs_t, 0, 0.5)
+        mask_1 = create_interval_mask(t, 0.5, 1.5)
+        mask_2 = create_interval_mask(-t, 0.5, 1.5)
+
+        values_0 = mask_0*(-((2*pi)/M)**2)*torch.cos(2*pi*t/M)*cos(pi/M)
+
+        values_1 = (mask_1 + mask_2)*2*(pi/M)**2*torch.cos(2*pi*(3/2-abs_t)/M)
+
+        phi_M_t = 1/(1-cos(2*pi/M))*(values_0 + values_1)
+
+        return phi_M_t
+
+    return basis_function_t
+
+
+def create_periodic_exponential_spline_second_derivatives(M):
+
+    basis_fct_aux = create_exponential_spline_second_derivative(M)
+    n_min = -1
+    n_max = 1
+
+    def basis_periodic_function(t):
+        phi_t = 0
+        for n in range(n_min,n_max+1):
+            phi_t = phi_t + basis_fct_aux(t-M*n)
+        return phi_t
+
+    return basis_periodic_function
