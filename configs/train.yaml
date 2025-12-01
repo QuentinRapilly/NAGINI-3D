@@ -11,7 +11,7 @@ data:
   anisotropy: 1,1,1    # if the images are anisotropic, indicates here for each axis, the ratio between the longuest and the current dim (long/crt>=1)
 
 settings:
-  experiment_name: DeepBioSnake  # str: experiment name used to store the network during training and log informations on WandB
+  experiment_name: NAGINI-3D  # str: experiment name used to store the network during training and log informations on WandB
   nb_points_on_surface: 101  # int: number of points sampled on the surface to compute the sliced wasserstein distance loss, reduce in case of "Cuda Out Of Memory" 
   nb_epochs: 1000  # int: nb of epochs during training
   use_wandb: true  # bool: weither to log or not losses on WandB to follow the training in live 
@@ -21,12 +21,11 @@ settings:
   seed: 0   # int: fix a seed if you need reproducibility in your training
 
 loss:
-  epoch_reg_max: 200  # int: number of epochs during which the regularization preventing surface twists is applied 
-  reg_part: 0.0       # float in [0,1]: weight the regularisation preventing surface twists, keep it zero for small values of M1 and M2 (typically 4,2), increase if you augment them. 
+  reg_ratio: 0.01       # float in [0,1]: weight the regularisation preventing surface twists, keep it zero for small values of M1 and M2 (typically 4,2), increase if you augment them. 
   lambdas:    
     snakes: 1.0       # float: weight the surface loss
     spots: 1.0        # float: weight the probability loss used for center detection
-    regularization : 0.001   # float: weight the background regularization loss (see paper for more details)
+    scale: 0.2
 
 save:
   path: <path_to_model_save_dir>  # str: path to the dir where the model trained will be stored

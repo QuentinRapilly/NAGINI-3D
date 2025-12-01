@@ -8,7 +8,9 @@ from glob import glob
 from numpy import savez
 
 from nagini3D.models.model import Nagini3D
-
+from nagini3D.models.tools.refinement import (image_to_refinement_grad,
+                                              image_to_refinement_grad_otsu)
+from nagini3D.models.tools.snake_sampler import SnakeSmoothSampler
 
 def str2bool(v):
     if isinstance(v, bool):
@@ -43,7 +45,7 @@ if __name__ == "__main__":
     nb_tiles = [int(x) for x in args.tiles.split(",")]
 
     use_snake = args.snake
-    use_otsu = args.otsu
+    grad_fn = image_to_refinement_grad_otsu if args.otsu else image_to_refinement_grad
 
     anisotropy = [float(x) for x in args.anisotropy.split(",")]
 
@@ -64,10 +66,13 @@ if __name__ == "__main__":
     M1 = cfg["settings"]["M1"]
     M2 = cfg["settings"]["M2"]
     r_mean = cfg["settings"]["r_mean"]
+    use_scale = cfg["settings"].get("use_scale")
+    if use_scale == None: use_scale = True
 
     weight_path = join(model_dir, weigth_file)
 
-    model = Nagini3D(unet_cfg=cfg["model"], P = 101, M1 = M1, M2 = M2, save_path=result_path, device=device)
+    model = Nagini3D(unet_cfg=cfg["model"], P = 101, M1 = M1, M2 = M2,
+                     save_path=result_path, device=device, use_scale=use_scale)
     model.load_weights(weight_path)
 
     imgs_path = glob(join(input_path,"*.tif"))
@@ -81,7 +86,8 @@ if __name__ == "__main__":
 
     mask_dir = join(save_dir, "mask")
     if not isdir(mask_dir): mkdir(mask_dir)
-    
+
+    snake_sampler = SnakeSmoothSampler(P=301, M1=M1, M2=M2, device=device)
 
     for img_path in imgs_path:
 
@@ -94,13 +100,16 @@ if __name__ == "__main__":
 
         print(f"Processing image : {img_name}")
 
-        mask, proba, parameters, surfaces = model.inference(img, proba_th=proba_th, r_mean=r_mean, nb_tiles=nb_tiles,\
-                                              nms_th=nms_th, optim_snake=use_snake, otsu=use_otsu, anisotropy=anisotropy)
+        mask, proba, points = model.inference(img, proba_th=proba_th, r_mean=r_mean,
+                                              nb_tiles=nb_tiles, nms_th=nms_th, optim_snake=use_snake,
+                                              anisotropy=anisotropy, grad_fn=grad_fn)
 
+        curv_pos, curv_values = snake_sampler.get_curvature_and_position(torch.tensor(points["params"],device=device))
 
         mask_path = join(result_path, img_name)
         proba_path = join(result_path, "proba_"+img_name)
         surfaces_path = join(result_path, "surf_"+name+".npz")
         tifffile.imwrite(mask_path, mask.cpu().numpy())
         tifffile.imwrite(proba_path, proba.cpu().numpy())
-        savez(surfaces_path, points = surfaces["points"], facets = surfaces["facets"], values = surfaces["values"])
+        savez(surfaces_path, points = points["points"], facets = points["facets"], values = points["values"],
+              curv_pos = curv_pos, curv_values = curv_values)

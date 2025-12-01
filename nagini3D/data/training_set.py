@@ -8,7 +8,7 @@ import torch
 from typing import Any
 from csbdeep.utils import normalize
 
-from .data_aug_tools import generate_rotation_matrix, rotate_image
+from data_aug_tools import generate_rotation_matrix, rotate_image
 
 FLOAT_TYPE = np.float32
 INT_TYPE = np.uint16
@@ -67,6 +67,7 @@ class TrainingSet(Dataset):
     def __getitem__(self, index) -> Any:
         img_path = self.imgs_list[index]
         img_name = basename(img_path)
+        print(img_name)
         img_name_no_ext = splitext(img_name)[0]
 
 
@@ -149,55 +150,57 @@ def custom_collate(batch):
     }
 
 
-# if __name__ == "__main__":
-#     path = ""
-#     anisotropy = [1,1,2]
-#     dataset = TrainingSet(dataset_dir=path, patch_size=50, nb_points=61, anisotropy_ratio=anisotropy)
+if __name__ == "__main__":
+    path = "/home/qrapilly/Documents/Code/Data/Elena_CAIC/non-star-conv-set" # "/home/qrapilly/Documents/Code/Data/Simu_2D+t_Charles/SimuFormes3D/filtered_set/tmp_dataset/train" # "/home/qrapilly/Documents/Code/Data/domain_shift/crowns_n_cluster/val" # "/home/qrapilly/Documents/Code/Data/chips_poisson/chips_dense/val"# "/home/qrapilly/Documents/Code/Data/sainte_data/val"
+    anisotropy = [2,1,1]
+    dataset = TrainingSet(dataset_dir=path, patch_size=[30,80,80], nb_points=101, anisotropy_ratio=anisotropy, cell_ratio_th=0.01)
 
-#     item = dataset[1]
+    item = dataset[1]
 
-#     img = item["image"]
-#     proba = item["proba"]
-#     samplings = item["voxels_samplings"]
-#     vox_proba = item["voxels_proba"]
-#     cell_vox = item["cell_voxels"]
+    img = item["image"]
+    proba = item["proba"]
+    samplings = item["voxels_samplings"]
+    vox_proba = item["voxels_proba"]
+    cell_vox = item["cell_voxels"]
 
-#     gamma = (np.array(img.shape)[1:]/np.array(proba.shape))
-#     coor = (np.stack(cell_vox).T)*gamma
+    gamma = (np.array(img.shape)[1:]/np.array(proba.shape))
+    coor = (np.stack(cell_vox).T)*gamma
 
-#     N = samplings.shape[0]
+    N = samplings.shape[0]
 
-#     points_to_plot = list()
+    points_to_plot = list()
 
-#     random_idx = [k for k in range(N)]
-#     from random import shuffle
-#     shuffle(random_idx)
+    idx_array = np.argsort(vox_proba)
+
+    random_idx = [k for k in range(N)]
+    from random import shuffle
+    shuffle(random_idx)
 
     
 
 
-#     for i in random_idx[:5]:
-#         s = samplings[i]
-#         c = coor[i]
-#         s_shifted = s*dataset.r_mean + c[None,:]*np.array([anisotropy])
+    for i in idx_array[-50:]:
+        s = samplings[i]
+        c = coor[i]
+        s_shifted = s*dataset.r_mean + c[None,:]*np.array([anisotropy])
         
-#         # print(s)
-#         points_to_plot.append(s_shifted)
+        # print(s)
+        points_to_plot.append(s_shifted)
 
 
-#     # print(len(cell_vox[0])/(proba==0).sum())
+    # print(len(cell_vox[0])/(proba==0).sum())
 
     
     
-#     import napari
-#     from skimage.transform import rescale
-#     img = rescale(img[0].numpy(), anisotropy)
-#     viewer = napari.view_image(img, ndisplay=2)
-#     #viewer.add_image(proba.numpy())
+    import napari
+    from skimage.transform import rescale
+    img = rescale(img[0].numpy(), anisotropy)
+    viewer = napari.view_image(img, ndisplay=2)
+    #viewer.add_image(proba.numpy())
 
-#     #viewer.add_points(coor, face_color="red", size=1)
-#     viewer.add_points(np.concatenate(points_to_plot), face_color="red", size=1)
-#     #viewer.add_points(coor*np.array([anisotropy]),size = 1, face_color="green")
+    #viewer.add_points(coor, face_color="red", size=1)
+    viewer.add_points(np.concatenate(points_to_plot), face_color="red", size=1)
+    #viewer.add_points(coor*np.array([anisotropy]),size = 1, face_color="green")
     
 
-#     napari.run()
+    napari.run()

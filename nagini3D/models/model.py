@@ -7,29 +7,28 @@ from omegaconf import OmegaConf
 from csbdeep.utils import normalize
 from scipy.optimize import minimize_scalar
 from tqdm import tqdm
-from skimage.segmentation import inverse_gaussian_gradient
-from skimage.filters import threshold_otsu, gaussian
-from scipy.ndimage import sobel
 
 from .unet.u3D_3D import Unet3D_3D
 from .loss.snake_regularized import RegularizedSnakeLoss
 from .tools.snake_sampler import SnakeSmoothSampler
 from .tools.display_val import PointCloudDisplay
-from .tools.coordinates import spherical_to_xyz, init_sphere
+from .tools.coordinates import spherical_to_xyz
 from .tools.inference_tools import find_centers, inside_contour, inside_contour_slow, get_mini_maxi
 from .tools.cost_matrix import compute_jaccard
-from .tools.image_tools import trilinear
+from .tools.refinement import image_to_refinement_grad, evaluate_grad
 
 
 class Nagini3D():
     def __init__(self, unet_cfg : dict, P : int = 101, M1 : int  = 4, M2 : int = 2,\
-                 device : str = "cpu", save_path : str = ".") -> None:
+                 device : str = "cpu", save_path : str = ".", use_scale = True) -> None:
         self.P = P
         self.M1 = M1
         self.M2 = M2
         self.nb_free_parameters = M1*(M2-1) + 6
 
         self.device = device
+
+        self.use_scale = use_scale
 
         self.sampler = SnakeSmoothSampler(P,M1,M2,device)
         self.points_displayer = PointCloudDisplay(M1=M1, M2=M2)
@@ -43,14 +42,12 @@ class Nagini3D():
     def init_optimizer(self, optimizer_cfg: dict):
         self.optimizer = {"adam" : torch.optim.AdamW, "sgd" : torch.optim.SGD}[optimizer_cfg["name"]](self.model.parameters(), **optimizer_cfg["parameters"])
 
-    def init_loss(self, loss_lambdas, reg_part=0.8, epoch_reg_max = 100):
+    def init_loss(self, loss_lambdas, reg_ratio):
         self.lambdas = loss_lambdas
-        reg_cps = init_sphere(self.M1, self.M2)
 
         self.criterion = {
             "spots" : torch.nn.BCEWithLogitsLoss(),
-            "snakes" : RegularizedSnakeLoss(reg_cps, self.device, f_alpha="sigmoid",
-                                            reg_part=reg_part, epoch_reg_max=epoch_reg_max)
+            "snakes" : RegularizedSnakeLoss(self.device, reg_ratio=reg_ratio)
         }
 
     def update_snake_loss(self, epoch):
@@ -63,17 +60,28 @@ class Nagini3D():
 
         self.save_dir = join(self.save_path, self.run_name)
 
+    def reload_save_dir(self, run_name):
+        self.run_name = run_name
+        self.save_dir = join(self.save_path, run_name)
+
     def get_run_name(self):
         return self.run_name
     
     def get_save_dir(self):
         return self.save_dir
     
-    def save_model(self, model_name : str):
+    def save_model(self, model_name : str, epoch, wandb_id, val_loss):
         if not isdir(self.save_dir):
             mkdir(self.save_dir)
-        torch.save(self.model.state_dict(), join(self.save_dir, f"{model_name}.pkl"))
+        checkpoint = { 
+            'epoch': epoch,
+            'model': self.model.state_dict(),
+            'optimizer': self.optimizer.state_dict(),
+            'wandb_id': wandb_id,
+            'val_loss': val_loss}
+        torch.save(checkpoint, join(self.save_dir, f"{model_name}_checkpoint.pkl"))
 
+        torch.save(self.model.state_dict(), join(self.save_dir, f"{model_name}.pkl"))
     def save_config(self, cfg_dict : dict):
         if not isdir(self.save_dir):
             mkdir(self.save_dir)
@@ -94,6 +102,18 @@ class Nagini3D():
         """
         self.model.load_state_dict(torch.load(weights_file, map_location=self.device, weights_only=True))
     
+    def load_checkpoint(self, checkpoint_path, optimizer_cfg):
+        checkpoint = torch.load(checkpoint_path, map_location=self.device)
+        
+        self.model.load_state_dict(checkpoint["model"])
+
+        optimizer_constructor = {"adam" : torch.optim.AdamW, "sgd" : torch.optim.SGD}[optimizer_cfg["name"]]
+        self.optimizer = optimizer_constructor(self.model.parameters(), **optimizer_cfg["parameters"])
+        self.optimizer.load_state_dict(checkpoint["optimizer"])
+
+        return checkpoint["epoch"], checkpoint["wandb_id"], checkpoint["val_loss"]
+
+
     def normalize_img(self, img):
         return torch.tensor(normalize(img, pmin=1, pmax=99.8, axis=(0,1,2), clip=True), dtype=torch.float32, device=self.device)
     
@@ -127,38 +147,43 @@ class Nagini3D():
                 free_parameters = features[:,1:]
 
                 cartesian_list = list()
+                scale_list = list()
 
                 for idx_sample, sample in enumerate(free_parameters):
                     x_cell, y_cell, z_cell = cell_voxels[idx_sample]
                     free_param_at_centers = sample[...,x_cell,y_cell, z_cell]
+                    scale_factor = free_param_at_centers[0]  # experiment on scale factor 
+                    free_param_at_centers = free_param_at_centers[1:] # experiment on scale factor
+
 
                     x,y,z = spherical_to_xyz(free_param_at_centers)
                     cp = torch.stack((x,y,z)).permute(2,1,0)
                     
                     cartesian_list.append(cp)
+                    scale_list.append(scale_factor)
 
                 free_parameters_cartesian = torch.cat(cartesian_list)
+                all_factors = torch.cat(scale_list) if self.use_scale else torch.tensor([1], device=self.device)
 
-                pred_samplings = self.sampler.sample_snakes(free_parameters_cartesian)
-
-                bg_mask = (proba==0)[:,None,...]
+                pred_samplings = self.sampler.sample_snakes(free_parameters_cartesian)*all_factors[...,None,None]
+                ds_du, ds_dv = self.sampler.get_derivatives(free_parameters_cartesian*all_factors[...,None,None])
 
                 spots_loss = self.criterion["spots"](pred_spots_maps, proba)
                 loss = spots_loss
 
                 nb_cell_voxel = len(pred_samplings)
                 if nb_cell_voxel>0: # do not compute the snake and reg loss if there is no cell voxel in the batch (to avoid NaN)
-                    snakes_loss = self.criterion["snakes"](pred_samplings, samplings, voxels_proba, free_parameters_cartesian)
-                    snakes_reg = (free_parameters[:,:self.nb_free_parameters]*bg_mask).abs().mean()
+                    snakes_loss = self.criterion["snakes"](pred_samplings, samplings, voxels_proba, ds_du, ds_dv)
+                    scale_loss = torch.nn.functional.mse_loss(all_factors, samplings.norm(dim=-1).mean(dim=-1)) if self.use_scale else 0
                 
-                    loss = self.lambdas["spots"]*loss + self.lambdas["snakes"]*snakes_loss + self.lambdas["regularization"]*snakes_reg
+                    loss = self.lambdas["spots"]*loss + self.lambdas["snakes"]*snakes_loss + self.lambdas["scale"]*scale_loss
 
             loss.backward()
             self.optimizer.step()
 
             if nb_cell_voxel>0:
                 infos["snakes"] += snakes_loss.item()/nb_batches
-                infos["regularization"] += snakes_reg.item()/nb_batches
+                infos["scale"] += (scale_loss.item()/nb_batches) if self.use_scale else 0
             infos["spots"] += spots_loss.item()/nb_batches
             infos["loss"] += loss.item()/nb_batches
         return infos
@@ -191,20 +216,26 @@ class Nagini3D():
                 free_parameters = features[:,1:]
 
                 cartesian_list = list()
+                scale_list = list()
 
                 for idx_sample, sample in enumerate(free_parameters):
                     x_cell, y_cell, z_cell = cell_voxels[idx_sample]
                     free_param_at_centers = sample[...,x_cell,y_cell, z_cell]
+                    scale_factor = free_param_at_centers[0]  # experience on scale factor
+                    free_param_at_centers = free_param_at_centers[1:]  # experience on scale factor
 
                     
                     x,y,z = spherical_to_xyz(free_param_at_centers)
                     cp = torch.stack((x,y,z)).permute(2,1,0)
                     
                     cartesian_list.append(cp)
+                    scale_list.append(scale_factor)  # experience on scale factor
 
                 free_parameters_cartesian = torch.cat(cartesian_list)
+                all_factors = torch.cat(scale_list) if self.use_scale else torch.tensor([1], device=self.device) # experience on scale factor
 
-                pred_samplings = self.sampler.sample_snakes(free_parameters_cartesian)
+                pred_samplings = self.sampler.sample_snakes(free_parameters_cartesian)*all_factors[...,None,None]
+                ds_du, ds_dv = self.sampler.get_derivatives(free_parameters_cartesian*all_factors[...,None,None])
 
                 bg_mask = (proba==0)[:,None,...]
 
@@ -214,14 +245,14 @@ class Nagini3D():
                 nb_cell_voxel = len(pred_samplings)
                 if nb_cell_voxel>0: # do not compute the snake and reg loss if there is no cell voxel in the batch (to avoid NaN)
 
-                    snakes_loss = self.criterion["snakes"](pred_samplings, samplings, voxels_proba, free_parameters_cartesian)
-                    snakes_reg = (free_parameters[:,:self.nb_free_parameters]*bg_mask).abs().mean()
-                
-                    loss = self.lambdas["spots"]*loss + self.lambdas["snakes"]*snakes_loss + self.lambdas["regularization"]*snakes_reg
+                    snakes_loss = self.criterion["snakes"](pred_samplings, samplings, voxels_proba, ds_du, ds_dv)
+                    scale_loss = torch.nn.functional.mse_loss(all_factors, samplings.norm(dim=-1).mean(dim=-1)) if self.use_scale else 0
+
+                    loss = self.lambdas["spots"]*loss + self.lambdas["snakes"]*snakes_loss + self.lambdas["scale"]*scale_loss
 
                 if nb_cell_voxel>0:
                     infos["snakes"] += snakes_loss.item()/nb_batches
-                    infos["regularization"] += snakes_reg.item()/nb_batches
+                    infos["scale"] += (scale_loss.item()/nb_batches) if self.use_scale else 0
                 infos["spots"] += spots_loss.item()/nb_batches
                 infos["loss"] += loss.item()/nb_batches
 
@@ -293,7 +324,8 @@ class Nagini3D():
                         features, _ = self.model(img[None,None,X_left:X_right,Y_left:Y_right,Z_left:Z_right])
 
                         pred_proba = torch.sigmoid(features[0,0])
-                        free_parameters_spherical = features[0,1:]
+                        free_parameters_spherical = features[0,2:]
+                        scale_factor = features[0,1]
 
                         proba_pred[...,X_left:X_right,Y_left:Y_right,Z_left:Z_right] += pred_proba
                         proba_votes[...,X_left:X_right,Y_left:Y_right,Z_left:Z_right] += 1
@@ -307,10 +339,11 @@ class Nagini3D():
                                     (Z>=Z_min-Z_left)*(Z<=Z_min-Z_left+lz)
                             X, Y, Z = X[in_patch], Y[in_patch], Z[in_patch]
                             fp_spherical = free_parameters_spherical[..., X, Y, Z]
+                            crt_scales = scale_factor[...,X,Y,Z] if self.use_scale else torch.tensor([1], device=self.device)
 
                             x, y, z = spherical_to_xyz(fp_spherical)
 
-                            fp_cartesian = torch.stack((x,y,z)).permute(2,1,0)
+                            fp_cartesian = torch.stack((x,y,z)).permute(2,1,0)*crt_scales[...,None,None]
 
                             centers_list.append(centers[in_patch] + torch.tensor([[X_left, Y_left, Z_left]]).to(self.device))
                             parameters_list.append(fp_cartesian.to(self.device))
@@ -411,10 +444,10 @@ class Nagini3D():
 
         samp_to_save = (samplings + centers[:,None,:])[remaining_idx]
         
-        return mask_pred, samp_to_save, remaining_centers, removed_centers
+        return mask_pred, samp_to_save, remaining_centers, removed_centers, remaining_idx
     
 
-    def optimize_snake(self, img, centers, surf_param, gamma = 0.01, nb_steps = None, up_sampling_ratio = 2, otsu_th : bool = True):
+    def optimize_snake(self, img, centers, surf_param, gamma = 0.01, nb_steps = None, grad_fn = image_to_refinement_grad):
 
         """
         Apply the snake refinement step on the image using the previously computed surfaces.
@@ -425,65 +458,41 @@ class Nagini3D():
         - surf_param: np.array(n,P,3), surface parameters/control points of all the predicted surfaces
         - gamma: float, step of the gradient optimization of the surface parameters
         - n_steps: int(optional), number of steps applied to optimimze the surface parameters (if not provided, computed using gamma)
-        - up_sampling_ratio: int>=1, parameter controling the quantity of additional control points, number of initial points is approximately multiplied by up_sampling_ratio^2
-        - otsu_th: bool, weither to apply otsu thresholding to img
+        - grad_fn: np.array(width, heigh, depth) -> [np.array(width, heigh, depth),np.array(width, heigh, depth),np.array(width, heigh, depth)]
+                funtion which gives the displacement (dX, dY, dZ) to apply to the surface in each location of the image
 
         Output:
         - tuple(points, facets, values), parameters of the optimized surfaces, points are the position of sampled points on the surface, 
         """
 
-        new_M1, new_M2 = self.M1*up_sampling_ratio, self.M2*up_sampling_ratio
-        new_I = new_M1*(new_M2-1)+6
-        if up_sampling_ratio>1:
-            up_sampler = SnakeSmoothSampler(P = self.P , M1 = new_M1, M2 = new_M2, device=self.device)
-            B = self.sampler.up_sample_sampling(surf_param, new_M1, new_M2)
-            Theta_inv = up_sampler.up_sample_transfer_matrix()[None,...].expand(len(B),new_I,new_I)
-
-            up_surf_param = torch.bmm(Theta_inv, B)
-        else:
-            up_sampler = self.sampler
-            up_surf_param = surf_param
-
         if nb_steps == None: nb_steps = int(5/gamma)
 
-        sigmas = [1]
-        nb_sig = len(sigmas)
-
         norm_img = normalize(img, pmin=1, pmax=99.8, axis=(0,1,2), clip=True)
-        if otsu_th:
-            blurred = gaussian(image=norm_img, sigma=1)
-            th = threshold_otsu(blurred)
-            otsu = (blurred>th)*1.
-            norm_img = otsu
+
+        grad_X, grad_Y, grad_Z = grad_fn(norm_img)
+
+        surf_param_cp = surf_param
 
 
-        for sig in sigmas:
-            gauss = inverse_gaussian_gradient(norm_img, alpha=100, sigma=sig)
+        ds_dfi = self.sampler.fi_weights
 
-            grad_X = sobel(gauss,0)
-            grad_Y = sobel(gauss,1)
-            grad_Z = sobel(gauss,2)
+        for _ in range(nb_steps):
+            samples = (self.sampler.sample_snakes(surf_param_cp) + centers[:,None,:]).cpu()
 
-            ds_dfi = up_sampler.fi_weights
+            dX, dY, dZ = evaluate_grad(samples, grad_X, grad_Y, grad_Z)
 
-            for _ in range(nb_steps//nb_sig):
-                samples = (up_sampler.sample_snakes(up_surf_param) + centers[:,None,:]).cpu()
+            grad = torch.tensor(np.stack((dX,dY,dZ)).transpose((1,2,0))).to(self.device)
 
-                dX = trilinear(samples, grad_X)
-                dY = trilinear(samples, grad_Y)
-                dZ = trilinear(samples, grad_Z)
+            Dfi = (ds_dfi*grad[...,None,:]).sum(dim=(1))
 
-                grad = torch.tensor(np.stack((dX,dY,dZ)).transpose((1,2,0))).to(self.device)
+            surf_param_cp = surf_param_cp - gamma*Dfi
 
-                Dfi = (ds_dfi*grad[...,None,:]).sum(dim=(1))
-
-                up_surf_param = up_surf_param - gamma*Dfi
-
-        generated_surf = up_sampler.draw_surface(up_surf_param, points_per_dim=(20,10))
-        return up_surf_param, generated_surf
+        generated_surf = self.sampler.draw_surface(surf_param_cp , points_per_dim=(20,10))
+        return surf_param_cp, generated_surf
     
+
     def inference(self, img, proba_th, r_mean, nb_tiles, overlap_ratio = 0.1, nms_th = 0.4, 
-                  optim_snake = True, use_otsu = True, d_mask = 3, anisotropy = [1,1,1]):
+                  optim_snake = True, grad_fn = image_to_refinement_grad, d_mask = 3, anisotropy = [1,1,1]):
         """
         Apply the model to a new image.
         
@@ -495,13 +504,14 @@ class Nagini3D():
         - overlap_ratio: float in [0,1], ratio of the tile size to overlap with the previous/next tile 
         - nms_th: float in [0,1], Non-Maximum-Suppression threshold, if two object have an IoU greater only one will be kept
         - optim_snake: bool, weither to process snake refinement after network prediction
-        - use_otsu: bool, weither to apply Otsu thresholding on image before refinement (improves results if objects are sparse)
-        
+        - grad_fn: np.array(width, heigh, depth) -> [np.array(width, heigh, depth),np.array(width, heigh, depth),np.array(width, heigh, depth)]
+                funtion which gives the displacement (dX, dY, dZ) to apply to the surface in each location of the image for the refinement 
+
         Output:
         - mask: np.array(width,height,depth), 3D mask associating a label to each voxel
         - proba: np.array(width,height,depth), 3D map associating a score to be the center of an object to each voxel
-        - parameters: dict{"centers", "parameters"}, a dict containing the centers and parameters of the predicted surfaces
-        - surfaces: dict{"points", "facets", "values"}, a dict containing the points, facets and values required to reconstruct the surfaces using napari
+        - points: dict{"points", "facets", "values", "centers", "params"}, a dict containing the points, facets and values required to reconstruct the surfaces using napari
+        and the surface centers and shape parameters to provide to the shape analysis features.
         """
 
         with torch.no_grad():
@@ -513,16 +523,53 @@ class Nagini3D():
         centers, surf_parameters = result["pred"]["centers"], result["pred"]["surface_parameters"]
 
         if optim_snake:
-            surf_parameters, new_surfaces = self.optimize_snake(img, centers, r_mean*surf_parameters/anisotropy_ten, otsu_th=use_otsu)
+            params, new_surfaces = self.optimize_snake(img, centers, r_mean*surf_parameters/anisotropy_ten, grad_fn=grad_fn)
             samplings, facets, values = new_surfaces
         else:
-            samplings, facets, values = self.sampler.draw_surface(free_parameters=r_mean*surf_parameters/anisotropy_ten, points_per_dim=(20,10))
+            params = r_mean*surf_parameters/anisotropy_ten
+            samplings, facets, values = self.sampler.draw_surface(free_parameters=params, points_per_dim=(20,10))
         
-        mask, samplings, _, _ = self.create_mask(img.shape, centers=centers, samplings=samplings,\
+        mask, samplings, remain_centers, _, remain_idx = self.create_mask(img.shape, centers=centers, samplings=samplings,\
                                            nms_th=nms_th, facets=facets, d_mask=d_mask)
 
-        return mask.cpu().numpy(), result["proba"].cpu().numpy(), {"centers" : centers, "parameters": surf_parameters},\
-            {"points" : samplings.cpu().numpy(), "facets" : facets.cpu().numpy(), "values" : values.cpu().numpy()}
+        return mask.cpu().numpy(), result["proba"].cpu().numpy(),\
+            {"points" : samplings.cpu().numpy(), "facets" : facets.cpu().numpy(), "values" : values.cpu().numpy(),
+             "params": params[remain_idx].cpu().numpy(), "centers" :remain_centers.cpu().numpy()}
+    
+
+    def inference_classic_n_refined(self, img, proba_th, r_mean, nb_tiles, overlap_ratio = 0.1, nms_th = 0.4, 
+                  grad_fn = image_to_refinement_grad, d_mask = 3, anisotropy = [1,1,1]):
+        
+        with torch.no_grad():
+            result = self.apply_network(img, proba_th=proba_th, nb_tiles=nb_tiles, overlap_ratio=overlap_ratio)
+        
+        anisotropy_vec = np.array(anisotropy)
+        anisotropy_ten = torch.tensor(anisotropy_vec, device=self.device)[None,None,...]
+
+        centers, surf_parameters = result["pred"]["centers"], result["pred"]["surface_parameters"]
+
+        params_before = r_mean*surf_parameters/anisotropy_ten
+        samp_before, facets_before, values_before = self.sampler.draw_surface(free_parameters=params_before, points_per_dim=(20,10))
+
+        before_mask, final_classic_samp, remain_centers_classic, _, remain_idx_classic =\
+            self.create_mask(img.shape, centers=centers, samplings=samp_before, nms_th=nms_th,
+                             facets=facets_before, d_mask=d_mask)
+        
+        params_after, new_surfaces = self.optimize_snake(img, centers, params_before, grad_fn=grad_fn)
+        samp_after, facets_after, values_after = new_surfaces
+
+        after_mask, final_refined_samp, remain_centers_refined, _, remain_idx_refined = \
+            self.create_mask(img.shape, centers=centers, samplings=samp_after, nms_th=nms_th,
+                             facets=facets_after, d_mask=d_mask)
+        
+        return before_mask.cpu().numpy(), after_mask.cpu().numpy(), result["proba"].cpu().numpy(),\
+            {"points" : final_classic_samp.cpu().numpy(), "facets" : facets_before.cpu().numpy(),
+             "values" : values_before.cpu().numpy(), "params": params_before[remain_idx_classic].cpu().numpy(),
+             "centers" :remain_centers_classic.cpu().numpy()},\
+            {"points" : final_refined_samp.cpu().numpy(), "facets" : facets_after.cpu().numpy(),
+             "values" : values_after.cpu().numpy(), "params": params_after[remain_idx_refined].cpu().numpy(),
+             "centers" :remain_centers_refined.cpu().numpy()}
+
     
 
     def predict_on_points(self, img, choosen_points, r_mean, nb_tiles, overlap_ratio = 0.1, d_mask = 3):
@@ -534,6 +581,22 @@ class Nagini3D():
                                            nms_th=None, facets=result["tools"]["facets"], d_mask=d_mask)
         
         return mask
+    
+
+    def shapes_curvature(self, params):
+
+        tensor_params = torch.tensor(params, device=self.device)
+        curvature = self.sampler.get_curvature(tensor_params)
+
+        mean_curv = curvature.mean(dim=-1)
+        std_curv = curvature.std(dim=-1)
+        max_curv, _  = curvature.max(dim=-1)
+        min_curv, _ = curvature.min(dim=-1)
+
+        #draw_curv = self.sampler.draw_curvature(tensor_params, points_per_dim=(30,15))
+
+        return {"mean_curv" : mean_curv.cpu().numpy(), "std_curv": std_curv.cpu().numpy(), "max_curv": max_curv.cpu().numpy(),
+                "min_curv": min_curv.cpu().numpy()}
     
 
         
