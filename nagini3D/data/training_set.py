@@ -8,7 +8,8 @@ import torch
 from typing import Any
 from csbdeep.utils import normalize
 
-from data_aug_tools import generate_rotation_matrix, rotate_image
+from .data_aug_tools import generate_rotation_matrix, rotate_image
+from .intensity_tools import generate_alteration_parameters, alter_image
 
 FLOAT_TYPE = np.float32
 INT_TYPE = np.uint16
@@ -16,7 +17,7 @@ INT_TYPE = np.uint16
 class TrainingSet(Dataset):
 
     def __init__(self, dataset_dir : str, patch_size : list, nb_points : int = 101, anisotropy_ratio : list = [1,1,1],
-                 r_mean = None, data_aug : bool = True, cell_ratio_th = 0.0, **kwargs) -> None:
+                 r_mean = None, data_aug : bool = True, cell_ratio_th = 0.0, intensity_aug = None, **kwargs) -> None:
         super().__init__()
 
         self.images_dir = join(dataset_dir, "images")
@@ -36,9 +37,13 @@ class TrainingSet(Dataset):
 
         self.cell_ratio_th = cell_ratio_th
 
+        if intensity_aug == None:
+            self.intensity_aug = []
+        else:
+            self.intensity_aug = intensity_aug
+
         if r_mean != None:
             self.r_mean = r_mean
-
         else:
             r_mean = 0
             nb_cells = 0
@@ -104,12 +109,23 @@ class TrainingSet(Dataset):
 
 
         if self.data_aug and self.is_isotropic:
-            theta1, theta2, theta3 = randint(0,3), randint(0,3), randint(0,3)
-            angles = (theta1, theta2, theta3)
 
-            img = rotate_image(img, angles).copy()
-            proba = rotate_image(proba, angles).copy()
-            mask = rotate_image(mask, angles).copy()
+            if self.is_isotropic:
+                theta1, theta2, theta3 = randint(0,3), randint(0,3), randint(0,3)
+                angles = (theta1, theta2, theta3)
+
+                img = rotate_image(img, angles).copy()
+                proba = rotate_image(proba, angles).copy()
+                mask = rotate_image(mask, angles).copy()
+
+            nb_aug = len(self.intensity_aug)
+            if nb_aug>0:
+                k = randint(0,nb_aug-1)
+                alter = generate_alteration_parameters(self.intensity_aug[k])
+                img = alter_image(img, alter)
+            
+                mi, ma = np.min(img), np.max(img)
+                img = (img - mi)/(ma - mi)
         
 
         cell_voxels = mask.nonzero()

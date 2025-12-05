@@ -21,7 +21,7 @@ def seed_worker(worker_id):
 
 
 
-def retrain(path_to_model_dir):
+def retrain(path_to_model_dir, checkpoint_name):
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     with open(join(path_to_model_dir, "config.yaml"), 'r') as file:
@@ -54,16 +54,24 @@ def retrain(path_to_model_dir):
     else:
         anisotropy = [float(x) for x in anisotropy_values.split(",")]
 
+    intensity_aug = cfg["data"].get("intensity_aug")
+    if intensity_aug == None:
+        intensity_aug = []
+    else:
+        intensity_aug = intensity_aug.split(",")
+
 
     r_mean = cfg["settings"]["r_mean"]
     train_set = TrainingSet(nb_points=P, r_mean=r_mean, img_size=cfg["data"]["img_size"],
                             data_aug=cfg["data"]["data_aug"], dataset_dir=cfg["data"]["train"],
                             max_noise=cfg["data"]["max_noise"], binary_img=cfg["data"]["binary_img"],
-                            anisotropy_ratio=anisotropy, cell_ratio_th=min_cell_ratio)
+                            anisotropy_ratio=anisotropy, cell_ratio_th=min_cell_ratio,
+                            intensity_aug=intensity_aug)
     val_set = TrainingSet(nb_points=P, r_mean=train_set.r_mean,  img_size=cfg["data"]["img_size"],
                             data_aug=cfg["data"]["data_aug"], dataset_dir=cfg["data"]["val"],
                             max_noise=cfg["data"]["max_noise"], binary_img=cfg["data"]["binary_img"],
-                            anisotropy_ratio=anisotropy, cell_ratio_th=min_cell_ratio)
+                            anisotropy_ratio=anisotropy, cell_ratio_th=min_cell_ratio,
+                            intensity_aug=intensity_aug)
 
 
     print(f"Mean radius of cells : {round(train_set.r_mean,3)}")
@@ -88,7 +96,7 @@ def retrain(path_to_model_dir):
                      use_scale=use_scale, save_path=cfg["save"]["path"])
     
 
-    first_epoch, wandb_id, previous_val_loss = model.load_checkpoint(join(path_to_model_dir, "last_checkpoint.pkl"),
+    first_epoch, wandb_id, previous_val_loss = model.load_checkpoint(join(path_to_model_dir, checkpoint_name),
                                                                      optimizer_cfg=cfg["optimizer"])
     
     
@@ -157,5 +165,6 @@ def retrain(path_to_model_dir):
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("-i", "--input")
+    parser.add_argument("-n", "--name", default="best_chackpoint.pkl")
     args = parser.parse_args()
-    retrain(args.input)
+    retrain(args.input, args.name)
