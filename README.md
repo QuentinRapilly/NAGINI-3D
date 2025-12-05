@@ -13,11 +13,13 @@ Scale Space and Variational Methods in Computer Vision. SSVM 2025. Lecture Notes
 
 ## Updates
 
+**Version 0.2.0:** new surface regularization enabling the prediction of highly parameterized surfaces. Object with local details are better segmented.
+
 **Version 0.1.1:** the method can now be trained more easily on highly anisotropic images.
 
 ## Method description
 
-Our approach consists in training a U-Net to:
+Our approach consists in training an U-Net to:
 
 1. locate the objects of interest in a 3D image using a predicted probability map $\hat{p}$,
 2. for each object, predict a set of control points $\lbrace\hat{{f}}\_{{x},i}\rbrace\_i$ describing a parametric surface $\hat{{s}}\_{{x}}$ representing the object located in ${x}$,
