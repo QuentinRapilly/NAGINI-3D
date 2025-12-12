@@ -88,6 +88,16 @@ To install the package, run:
 
 `pip install nagini3D`
 
+### Napari Plugin
+
+![image](images/pipeline/napari-plugin.png)
+
+A Napari plugin is now available.
+
+See the installation procedure at [https://github.com/QuentinRapilly/nagini3d-napari](https://github.com/QuentinRapilly/nagini3d-napari).
+
+Model weights and testing images are provided in the plugin GitHub.
+
 ## Using the method
 
 All the scripts are designed to process TIF images.

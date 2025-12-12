@@ -33,7 +33,7 @@ class Nagini3D():
         self.sampler = SnakeSmoothSampler(P,M1,M2,device)
         self.points_displayer = PointCloudDisplay(M1=M1, M2=M2)
 
-        self.model = Unet3D_3D(num_classes = 3*self.nb_free_parameters + 1, **unet_cfg)
+        self.model = Unet3D_3D(num_classes = 3*self.nb_free_parameters + 2, **unet_cfg)
         self.model = self.model.to(device)
 
         self.save_path = save_path
@@ -487,7 +487,7 @@ class Nagini3D():
 
             surf_param_cp = surf_param_cp - gamma*Dfi
 
-        generated_surf = self.sampler.draw_surface(surf_param_cp , points_per_dim=(20,10))
+        generated_surf = self.sampler.draw_surface(surf_param_cp , points_per_dim=(30,15))
         return surf_param_cp, generated_surf
     
 
@@ -527,7 +527,7 @@ class Nagini3D():
             samplings, facets, values = new_surfaces
         else:
             params = r_mean*surf_parameters/anisotropy_ten
-            samplings, facets, values = self.sampler.draw_surface(free_parameters=params, points_per_dim=(20,10))
+            samplings, facets, values = self.sampler.draw_surface(free_parameters=params, points_per_dim=(30,15))
         
         mask, samplings, remain_centers, _, remain_idx = self.create_mask(img.shape, centers=centers, samplings=samplings,\
                                            nms_th=nms_th, facets=facets, d_mask=d_mask)
@@ -549,7 +549,8 @@ class Nagini3D():
         centers, surf_parameters = result["pred"]["centers"], result["pred"]["surface_parameters"]
 
         params_before = r_mean*surf_parameters/anisotropy_ten
-        samp_before, facets_before, values_before = self.sampler.draw_surface(free_parameters=params_before, points_per_dim=(20,10))
+        samp_before, facets_before, values_before = self.sampler.draw_surface(free_parameters=params_before,
+                                                                              points_per_dim=(30,15))
 
         before_mask, final_classic_samp, remain_centers_classic, _, remain_idx_classic =\
             self.create_mask(img.shape, centers=centers, samplings=samp_before, nms_th=nms_th,

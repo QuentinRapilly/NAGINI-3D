@@ -24,7 +24,7 @@ class SnakeSmoothSampler():
         lat = np.arcsin(2*i/P)/torch.pi + 0.5
         long = np.mod(i*golden_ratio, 1)
 
-        self.u = torch.unsqueeze(torch.tensor(long),1) 
+        self.u = torch.unsqueeze(torch.tensor(long),1)
         self.v = torch.unsqueeze(torch.tensor(lat), 1)
 
         # Computation of sampling weights
@@ -65,6 +65,9 @@ class SnakeSmoothSampler():
         self.dudv = (phi_per_weights_prime*phi_weights_prime).unsqueeze(0)[...,None].to(device)
         self.du2 = (phi_per_weights_prime2*self.phi_weights).unsqueeze(0)[...,None].to(device)
         self.dv2 = (self.phi_per_weights*phi_weights_prime2).unsqueeze(0)[...,None].to(device)
+
+        self.u = self.u.to(device=device)
+        self.v = self.v.to(device=device)
 
         gamma = 2*(1-cos(2*pi/M1))/(cos(pi/M1)-cos(3*pi/M1))
         self.cM1 = gamma*torch.cos(2*torch.pi*i/M1)[...,None]
@@ -317,7 +320,7 @@ class SnakeSmoothSampler():
         mask = np.ones((P), dtype=bool)
         mask[N] = False
 
-        return pos[mask], kappa[mask]
+        return pos[:,mask].detach().cpu().numpy(), kappa[:,mask].detach().cpu().numpy()
 
     
 if __name__ == "__main__":
