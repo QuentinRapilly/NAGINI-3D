@@ -13,6 +13,8 @@ Scale Space and Variational Methods in Computer Vision. SSVM 2025. Lecture Notes
 
 ## Updates
 
+**Version 0.2.3:** bug fix for the compuatation of the local curvature.
+
 **Version 0.2.0:** new surface regularization enabling the prediction of highly parameterized surfaces. Object with local details are better segmented.
 
 **Version 0.1.1:** the method can now be trained more easily on highly anisotropic images.

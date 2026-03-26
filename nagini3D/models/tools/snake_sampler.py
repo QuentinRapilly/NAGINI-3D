@@ -298,29 +298,30 @@ class SnakeSmoothSampler():
 
     def get_curvature(self, free_parameters):
         T1, T2 = self.get_derivatives(free_parameters=free_parameters)
-        det_I1 = (T1*T1).sum(dim=-1) + (T2*T2).sum(dim=-1) - 2*(T1*T2).sum(dim=-1)
+        E = (T1*T1).sum(dim=-1)
+        F = (T1*T2).sum(dim=-1)
+        G = (T2*T2).sum(dim=-1)
+        det_I1 =  E*G - F**2
 
         n = torch.cross(T1, T2, dim=-1)
         n_tilde = n/torch.norm(n, dim=-1, keepdim=True)
 
         ds_du2, ds_dv2, ds_dudv = self.get_second_derivatives(free_parameters=free_parameters)
-        det_I2 = (ds_du2*n_tilde).sum(dim=-1) + (ds_dv2*n_tilde).sum(dim=-1) - 2*(ds_dudv*n_tilde).sum(dim=-1)
+        L = (ds_du2*n_tilde).sum(dim=-1)
+        M = (ds_dudv*n_tilde).sum(dim=-1)
+        N = (ds_dv2*n_tilde).sum(dim=-1)
+        
+        H = (E*N - 2*F*M + G*L)/(2*det_I1)
+        #det_I2 = L*N - M**2
+        #kappa = det_I2/det_I1
 
-        kappa = det_I2/det_I1
-
-        return kappa
+        return H
     
     def get_curvature_and_position(self, free_parameters):
-        kappa = self.get_curvature(free_parameters)
+        H = self.get_curvature(free_parameters)
         pos = self.sample_snakes(free_parameters)
 
-        P = self.P
-        N = (P-1)//2
-
-        mask = np.ones((P), dtype=bool)
-        mask[N] = False
-
-        return pos[:,mask].detach().cpu().numpy(), kappa[:,mask].detach().cpu().numpy()
+        return pos.detach().cpu().numpy(), H.detach().cpu().numpy()
 
     
 if __name__ == "__main__":
