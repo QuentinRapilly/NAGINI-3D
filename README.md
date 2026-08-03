@@ -35,7 +35,7 @@ Our approach consists in training an U-Net to:
 The training and inference pipelines are summerized on the following figure.
 
 **Pipeline:**
-![image](images/pipeline/schema.png)
+![Training and inference pipeline](https://github.com/QuentinRapilly/NAGINI-3D/blob/main/images/pipeline/schema.png)
 
 During the model **training**, the ground-truth (GT) mask **(a)** allows to generate a GT sampling $\mathcal{S}$ for each object contained in the patch **(b)** and GT score-map ${\bm{p}}$ **(c)**. The image patch $\mathcal{I}$ **(d)** is given to the network **(e)** that predicts i) a score map $\hat{\bm{p}}$ **(f)**; ii) surface parameter channels **(g)**. For any given position $\bm{x}$ in the patch, each channel provides one of the parameter coordinates generating a surface that represents the object to which $\bm{x}$ belongs to. The predicted surfaces are sampled **(h)** and matched with the GT samplings. The GT and predited score maps are compared. During the **inference:** the score map and the parameter coordinates are predicted identically than for training. The score map $\hat{\bm{p}}$ allows to localize objects **(i)** and the surface representing the object are generated at this location **(j)**. An optional snake-based refinement can be applied to enhance the result **(k)**.
 
@@ -179,7 +179,7 @@ Optionnal parameters:
 
 The main benefit of our method, compared to other state-of-the-art approach, is the straight-forward geometrical analysis that can be performed on the segmented objects: Principal Component Analysis (PCA), Curvature Analysis.
 
-![](images/pipeline/shape.png)
+![Shape analysis pipeline](https://github.com/QuentinRapilly/NAGINI-3D/blob/main/images/pipeline/shape.png)
 
 ## Dataset
 
