@@ -1,15 +1,20 @@
 # NAGINI-3D | Prediction of Parametric Surfaces for Multi-Object Segmentation in 3D Biological Imaging
 
-We present NAGINI-3D (N-Active shapes for seGmentINg 3D biological Images), a method dedicated to 3D biological images segmentation, based on both deep learning (CNN) and Active Surfaces (Snakes).
+We introduce Nagini3D, a 3D biological image segmentation method that hybridizes two high-performing yet highly complementary segmentation paradigms: deep learning-based approaches and snake-based methods. Our approach leverages both the high efficiency of data-driven techniques and the convenient shape representation provided by active surfaces, which proves highly practical for incorporating a priori knowledge as well as for the post-analysis of segmented objects.
+
+By considering a complete 3D volume, our method ensures segmentation consistency across all three dimensions, unlike many approaches that handle volumes in a slice-by-slice manner. Additionally, it theoretically enables the representation of any object with spherical topology, overcoming the limitations of common 3D methods that rely on object convexity assumptions. Furthermore, the continuous representation of objects allows for a resolution-independent description, facilitating the extraction of various geometric features of interest (e.g., local curvature, principal deformations).
+We demonstrate both the quality of the segmentation produced by our method and the richness of the accessible geometric features through an extensive set of experiments conducted on multiple real and simulated datasets, including objects with challenging geometries.
 
 <img src="https://github.com/QuentinRapilly/NAGINI-3D/blob/main/images/logo/nagini.png" title="NAGINI Logo" width="25%" align="right">
 
-This repository provides the code described in the paper:
+A paper describing a preliminary version of the method is available at:
 
 - Quentin RAPILLY, Anaïs BADOUAL,Pierre MAINDRON, Guenaelle BOUET, Charles KERVRANN.
 *Prediction of Parametric Surfaces for Multi-Object Segmentation in 3D Biological Imaging*.
 Scale Space and Variational Methods in Computer Vision. SSVM 2025. Lecture Notes in Computer Science, vol 15667, Devon, UK, May 2025,
-[(preprint)](https://hal.science/hal-04978619), [(final paper)](https://link.springer.com/chapter/10.1007/978-3-031-92366-1_20).
+[(HAL preprint)](https://hal.science/hal-04978619), [(official version)](https://link.springer.com/chapter/10.1007/978-3-031-92366-1_20).
+
+An updated version is currently being written.
 
 ## Updates
 
@@ -24,20 +29,15 @@ Scale Space and Variational Methods in Computer Vision. SSVM 2025. Lecture Notes
 Our approach consists in training an U-Net to:
 
 1. locate the objects of interest in a 3D image using a predicted probability map $\hat{p}$,
-2. for each object, predict a set of control points $\lbrace\hat{{f}}\_{{x},i}\rbrace\_i$ describing a parametric surface $\hat{{s}}\_{{x}}$ representing the object located in ${x}$,
+2. for each object, predict a set of surface parameters $(\hat{\alpha},{{\lbrace\hat{{g}_i}}\rbrace}_{1\leq i\leq M})$ describing a parametric surface $\hat{{s}}_{{x}}$ representing the object located in ${x}$,
 3. (optionnal) a snake optimisation procedure based on image gradient can be used to optimize the surfaces.
 
-To evaluate the loss used to train the network, the Ground-Truth (GT) probability/spots map $p$ and a sampling $S$ representing each object of the training dataset are required. Some tools available in this Github will help you pre-process your data to create them.
+The training and inference pipelines are summerized on the following figure.
 
-The training and inference pipelines are summerized on the following figures.
+**Pipeline:**
+![image](images/pipeline/schema.png)
 
-**Training pipeline:**
-![image](images/pipeline/training.png)
-
-**Inference pipeline**
-![image](images/pipeline/inference.png)
-
-More details on the method are provided in the paper mentionned above.
+During the model **training**, the ground-truth (GT) mask **(a)** allows to generate a GT sampling $\mathcal{S}$ for each object contained in the patch **(b)** and GT score-map ${\bm{p}}$ **(c)**. The image patch $\mathcal{I}$ **(d)** is given to the network **(e)** that predicts i) a score map $\hat{\bm{p}}$ **(f)**; ii) surface parameter channels **(g)**. For any given position $\bm{x}$ in the patch, each channel provides one of the parameter coordinates generating a surface that represents the object to which $\bm{x}$ belongs to. The predicted surfaces are sampled **(h)** and matched with the GT samplings. The GT and predited score maps are compared. During the **inference:** the score map and the parameter coordinates are predicted identically than for training. The score map $\hat{\bm{p}}$ allows to localize objects **(i)** and the surface representing the object are generated at this location **(j)**. An optional snake-based refinement can be applied to enhance the result **(k)**.
 
 ## Installation
 
@@ -59,22 +59,33 @@ If the Docker image selected to create the Singularity image (see in [nagini3D.d
 
 While the image is running, you should have the exact same version of Python, PyTorch and the important packages used to run the code.
 
-### Installation using pip
+### Installation using uv/pip
 
-Our implementation can be installed using pip.
+Our implementation can be installed using uv/pip.
 
-We strongly recommend installing it in a dedicated conda environment.
+We strongly recommend installing it in a dedicated environment.
 
-`conda create --name nagini-env python=3.10.8`
+`python -m venv <name_of_the_environment>`
 
-`conda activate nagini-env`
+`source <name_of_the_environment>\bin\activate`
 
 Before installing our package, the only requirement is that your environment has a working version of Pytorch>=1.13.
 If you want to use your GPU (strongly recommended, especially for training), make sure you have a working CUDA.
 
-No GPU: `conda install pytorch=1.13`
+First download `uv` a package manager that is much more efficient than `pip`
 
-Using GPU: `conda install pytorch=1.13 pytorch-cuda=11.6 -c pytorch -c nvidia` (you might need to change the CUDA version depending on your GPU requirements and driver).
+`pip install uv`
+
+No GPU:
+
+`pip install pytorch=1.13`
+
+Using GPU:
+
+`uv pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126`
+
+(you might need to change the CUDA version depending on your GPU requirements and driver ; see [Pytorch web page](https://pytorch.org/get-started/locally/)).
+
 
 To make sure your GPU is available, open a Python prompt and run the following commands:
 
@@ -88,7 +99,7 @@ If it outputs "no", something didn't work in your CUDA installation.
 
 To install the package, run:
 
-`pip install nagini3D`
+`uv pip install nagini3D`
 
 ### Napari Plugin
 
@@ -120,7 +131,7 @@ We provide all the scripts we used to make our experiments. To use it, we recomm
 - **hydra** (used for configuration files management),
 - **tifffile** (used to load the tiff images).
 
-To install it run: `pip install nagini3D[full]` instead of the classical pip command (see "Installation using pip"). If you choose the Singularity installation, everything is already installed.
+To install it run: `uv pip install nagini3D[full]` instead of the classical pip command (see "Installation using pip"). If you choose the Singularity installation, everything is already installed.
 
 #### Preprocessing data for training
 
@@ -163,6 +174,12 @@ Optionnal parameters:
 - `-t <(float,float): probability threshold used to extract local maxima and NMS thresholds used to remove duplicates>`. If the training finished correctly, the last step consists in evaluating the best thresholds on the validation set, in this case, you don't need to provide this parameter.
 - `-tt <(int,int,int): number of tiles to do along each dimension>`. By default set to (1,1,1), can be useful to split some images in tiles if they are too big for your GPU/CPU.
 - `-ot <bool: if True, apply an Otsu binarization of the image before snake optimization>`. For sparse objects, this option improves drastically the results. For dense objects, keep it to False.
+
+## Geometrical analysis
+
+The main benefit of our method, compared to other state-of-the-art approach, is the straight-forward geometrical analysis that can be performed on the segmented objects: Principal Component Analysis (PCA), Curvature Analysis.
+
+![](images/pipeline/shape.png)
 
 ## Dataset
 
