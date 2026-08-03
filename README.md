@@ -29,7 +29,7 @@ An updated version is currently being written.
 Our approach consists in training an U-Net to:
 
 1. locate the objects of interest in a 3D image using a predicted probability map $\hat{p}$,
-2. for each object, predict a set of surface parameters $(\hat{\alpha},{{\lbrace\hat{{g}_i}}\rbrace}_{1\leq i\leq M})$ describing a parametric surface $\hat{{s}}_{{x}}$ representing the object located in ${x}$,
+2. for each object, predict a set of surface parameters describing a parametric surface $\hat{{s}}_{{x}}$ representing the object located in ${x}$,
 3. (optionnal) a snake optimisation procedure based on image gradient can be used to optimize the surfaces.
 
 The training and inference pipelines are summerized on the following figure.
